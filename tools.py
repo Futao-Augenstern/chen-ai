@@ -188,9 +188,9 @@ class CalculatorTool(BaseTool):
 
 
 class FileTool(BaseTool):
-    SAFE_DIRS: Optional[List[Path]] = None
+    """文件操作工具，默认限制在工作目录内以确保安全"""
 
-    def __init__(self):
+    def __init__(self, safe_dirs: Optional[List[Path]] = None):
         super().__init__(
             name="file_operations",
             description="读取、写入、列出文件",
@@ -199,6 +199,16 @@ class FileTool(BaseTool):
                 "path": "文件或目录路径",
             },
         )
+        # 默认安全目录为当前工作目录
+        if safe_dirs is None:
+            safe_dirs = [Path.cwd().resolve()]
+        self.SAFE_DIRS = [d.resolve() for d in safe_dirs]
+
+    def add_safe_dir(self, dir_path: Path) -> None:
+        """添加安全目录"""
+        resolved = Path(dir_path).expanduser().resolve()
+        if resolved not in self.SAFE_DIRS:
+            self.SAFE_DIRS.append(resolved)
 
     def _is_safe_path(self, file_path: Path) -> bool:
         if self.SAFE_DIRS:

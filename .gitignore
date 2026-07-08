@@ -19,19 +19,29 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+pip-wheel-metadata/
 
 # Virtual Environment
 venv/
 env/
 ENV/
 .venv/
+virtualenv/
 
 # Environment variables
 .env
+.env.local
+.env.*.local
+
+# 配置示例不忽略
+!.env.example
 
 # Logs
 logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # IDE
 .vscode/
@@ -39,11 +49,43 @@ logs/
 *.swp
 *.swo
 *~
+.project
+.settings/
+*.sublime-workspace
 
 # OS
 .DS_Store
 Thumbs.db
+ehthumbs.db
+Desktop.ini
 
-# Data
+# 数据目录（运行时生成）
 mcp_data/
 skills_data/
+memory_data/
+cache_data/
+telemetry/
+
+# 测试和覆盖率
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.benchmarks/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# 打包
+*.tar.gz
+*.zip
+
+# Gradio 缓存
+gradio_cached_examples/

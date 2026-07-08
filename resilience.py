@@ -1,6 +1,7 @@
 import time
 import random
 import logging
+import asyncio
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Optional, Type, TypeVar
 
@@ -171,7 +172,7 @@ class ResilientAPIClient:
                         f"异步重试 {attempt + 1}/{self.max_retries}: "
                         f"失败 ({e}), {delay:.1f}s 后重试"
                     )
-                    time.sleep(delay)
+                    await asyncio.sleep(delay)
                 else:
                     logger.error(f"异步重试耗尽: 失败 {self.max_retries + 1} 次")
         raise last_exception  # type: ignore[misc]
