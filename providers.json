@@ -1,0 +1,77 @@
+{
+  "providers": [
+    {
+      "name": "OpenAI",
+      "base_url": "https://api.openai.com/v1",
+      "models": ["gpt-4o", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo"],
+      "default_model": "gpt-3.5-turbo"
+    },
+    {
+      "name": "DeepSeek",
+      "base_url": "https://api.deepseek.com",
+      "models": ["deepseek-chat", "deepseek-reasoner"],
+      "default_model": "deepseek-chat"
+    },
+    {
+      "name": "通义千问",
+      "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      "models": ["qwen-turbo", "qwen-plus", "qwen-max", "qwen-max-longcontext"],
+      "default_model": "qwen-turbo"
+    },
+    {
+      "name": "Moonshot (Kimi)",
+      "base_url": "https://api.moonshot.cn/v1",
+      "models": ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
+      "default_model": "moonshot-v1-8k"
+    },
+    {
+      "name": "智谱 GLM",
+      "base_url": "https://open.bigmodel.cn/api/paas/v4",
+      "models": ["glm-4-flash", "glm-4", "glm-4-plus"],
+      "default_model": "glm-4-flash"
+    },
+    {
+      "name": "百度文心",
+      "base_url": "https://qianfan.baidubce.com/v2",
+      "models": ["ernie-speed-128k", "ernie-lite-8k", "ernie-tiny-8k"],
+      "default_model": "ernie-speed-128k"
+    },
+    {
+      "name": "零一万物",
+      "base_url": "https://api.lingyiwanwu.com/v1",
+      "models": ["yi-large", "yi-medium", "yi-spark", "yi-lightning"],
+      "default_model": "yi-medium"
+    },
+    {
+      "name": "Groq",
+      "base_url": "https://api.groq.com/openai/v1",
+      "models": ["llama-3.3-70b-versatile", "mixtral-8x7b-32768", "gemma2-9b-it"],
+      "default_model": "llama-3.3-70b-versatile"
+    },
+    {
+      "name": "Together AI",
+      "base_url": "https://api.together.xyz/v1",
+      "models": ["meta-llama/Llama-3-70b-chat-hf", "mistralai/Mixtral-8x7B-Instruct-v0.1"],
+      "default_model": "meta-llama/Llama-3-70b-chat-hf"
+    },
+    {
+      "name": "硅基流动",
+      "base_url": "https://api.siliconflow.cn/v1",
+      "models": ["deepseek-ai/DeepSeek-V3", "Qwen/Qwen2.5-7B-Instruct", "meta-llama/Meta-Llama-3.1-8B-Instruct"],
+      "default_model": "deepseek-ai/DeepSeek-V3"
+    },
+    {
+      "name": "Ollama (本地)",
+      "base_url": "http://localhost:11434/v1",
+      "models": ["llama3", "qwen2", "mistral", "gemma2"],
+      "default_model": "llama3"
+    },
+    {
+      "name": "自定义",
+      "base_url": "",
+      "models": [],
+      "default_model": "",
+      "custom": true
+    }
+  ]
+}
