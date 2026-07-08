@@ -547,6 +547,7 @@ class SkillManager:
             self._save()
 
     def _save(self):
+        SKILLS_DIR.mkdir(parents=True, exist_ok=True)
         data = [s.to_dict() for s in self.skills.values()]
         with open(SKILLS_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)

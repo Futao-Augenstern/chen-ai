@@ -243,6 +243,7 @@ class MCPManager:
             self._save()
 
     def _save(self) -> None:
+        MCP_DIR.mkdir(parents=True, exist_ok=True)
         data = [s.to_dict() for s in self.servers.values()]
         with open(MCP_CONFIG_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
