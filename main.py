@@ -1,10 +1,14 @@
+import argparse
+import atexit
 import json
 import logging
 import sys
+import traceback
 from pathlib import Path
 from typing import Optional
 
 from ai_core import AIChat
+from config import get_provider_summary
 from memory import MemorySystem
 from skills import SkillManager
 from tools import ToolRegistry
@@ -77,6 +81,15 @@ def _safe_input(prompt: str) -> Optional[str]:
         return None
 
 
+def cleanup(mcp: "MCPManager") -> None:
+    """清理资源，停止所有 MCP 子进程"""
+    try:
+        mcp.stop_all()
+        logger.info("MCP 子进程已全部停止")
+    except Exception:
+        logger.warning("清理 MCP 子进程时出错", exc_info=True)
+
+
 def handle_command(
     cmd_name: str,
     arg: Optional[str],
@@ -143,8 +156,13 @@ def handle_command(
             if models:
                 _print_panel("可用模型", ", ".join(models))
             return
-        loop.ai.set_model(arg)
-        _print_status(f"模型已切换: {loop.ai.model}")
+        try:
+            loop.ai.set_model(arg)
+            _print_status(f"模型已切换: {loop.ai.model}")
+        except ValueError as e:
+            print(f"错误: {e}")
+            logger.error(f"切换模型失败: {e}")
+            traceback.print_exc()
 
     elif cmd_name == "/skills":
         rows = [
@@ -160,11 +178,16 @@ def handle_command(
             else:
                 _print_status("未激活技能")
             return
-        if loop.set_skill(arg, skills):
-            _print_status(f"技能已激活: {arg}")
-        else:
-            print(f"未找到技能: {arg}")
-            print("可用: " + ", ".join(s.name for s in skills.list_skills()))
+        try:
+            if loop.set_skill(arg, skills):
+                _print_status(f"技能已激活: {arg}")
+            else:
+                print(f"未找到技能: {arg}")
+                print("可用: " + ", ".join(s.name for s in skills.list_skills()))
+        except (ValueError, AttributeError) as e:
+            print(f"错误: {e}")
+            logger.error(f"切换技能失败: {e}")
+            traceback.print_exc()
 
     elif cmd_name == "/uns":
         if loop.active_skill:
@@ -311,40 +334,167 @@ def handle_command(
                 print("可用: " + ", ".join(s.name for s in mcp.list_servers()))
 
     elif cmd_name == "/mcp-export":
-        path = mcp.export_config()
-        _print_status(f"MCP配置已导出: {path}")
+        try:
+            path = mcp.export_config()
+            _print_status(f"MCP配置已导出: {path}")
+        except (IOError, OSError, PermissionError) as e:
+            print(f"导出MCP配置失败: {e}")
+            logger.error(f"导出MCP配置失败: {e}")
+            traceback.print_exc()
 
     elif cmd_name == "/export":
-        text = loop.ai.export_history()
-        export_path = Path("chat_export.txt")
-        export_path.write_text(text, encoding="utf-8")
-        _print_status(f"对话已导出: {export_path}")
+        try:
+            text = loop.ai.export_history()
+            export_path = Path("chat_export.txt")
+            export_path.write_text(text, encoding="utf-8")
+            _print_status(f"对话已导出: {export_path}")
+        except (IOError, OSError, PermissionError) as e:
+            print(f"导出对话失败: {e}")
+            logger.error(f"导出对话失败: {e}")
+            traceback.print_exc()
 
     else:
         print(f"未知命令: {cmd_name}，输入 /help 查看帮助")
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="AI 智能助手命令行界面")
+    parser.add_argument("--provider", "-p", help="指定 AI 服务商名称")
+    parser.add_argument("--model", "-m", help="指定模型名称")
+    parser.add_argument("--web", "-w", action="store_true", help="启动 Web UI 模式")
+    parser.add_argument("--port", type=int, default=7860, help="Web UI 端口号 (默认: 7860)")
+    parser.add_argument("--no-stream", action="store_true", help="禁用流式输出")
+    parser.add_argument("--config", help="指定配置文件路径")
+    parser.add_argument("--skills", action="store_true", help="列出所有可用技能后退出")
+    parser.add_argument("--mcp", action="store_true", help="列出所有 MCP Server 后退出")
+    args = parser.parse_args()
+
+    # 端口范围验证
+    if args.port and not (1 <= args.port <= 65535):
+        print(f"错误: 端口号必须在 1-65535 之间，当前值: {args.port}")
+        sys.exit(1)
+
     if RICH:
         console.print(
             Panel.fit(
-                "[bold cyan]AI 智能助手 v3.0[/bold cyan]\n"
+                "[bold cyan]AI 智能助手 v1.0.1[/bold cyan]\n"
                 "[dim]融合 Reasonix + Claude Code + Codex + Hermes + OpenClaw[/dim]",
                 border_style="cyan",
             )
         )
     else:
         print("=" * 60)
-        print("  AI 智能助手 (命令行版)  v3.0")
+        print("  AI 智能助手 (命令行版)  v1.0.1")
         print("  融合 Reasonix + Claude Code + Codex + Hermes + OpenClaw")
         print("=" * 60)
 
     ai = AIChat()
+
+    # 提供商配置摘要（一条信息替代刷屏警告）
+    summary = get_provider_summary()
+    if summary["configured"] == 0:
+        _print_status(
+            "提示: 未检测到任何 API Key。请复制 .env.example 为 .env 并填入 Key"
+        )
+    else:
+        _print_status(
+            f"已配置 API Key: {', '.join(summary['configured_names'])}"
+            f" (共 {summary['configured']}/{summary['total']} 个服务商)"
+        )
+
     memory = MemorySystem()
     skills = SkillManager()
     tools = ToolRegistry()
     mcp = MCPManager()
     loop = AgentLoop(ai, memory, tools)
+
+    # 注册清理函数
+    atexit.register(cleanup, mcp=mcp)
+
+    # 处理配置文件加载
+    if args.config:
+        try:
+            config_path = Path(args.config)
+            if not config_path.exists():
+                raise FileNotFoundError(f"配置文件不存在: {args.config}")
+            config_data = json.loads(config_path.read_text(encoding="utf-8"))
+            if "provider" in config_data:
+                ai.set_provider(config_data["provider"])
+            if "model" in config_data:
+                ai.set_model(config_data["model"])
+            logger.info(f"已加载配置文件: {args.config}")
+            _print_status(f"已加载配置文件: {args.config}")
+        except FileNotFoundError as e:
+            logger.error(str(e))
+            print(f"错误: {e}")
+            sys.exit(1)
+        except json.JSONDecodeError as e:
+            logger.error(f"配置文件 JSON 解析错误: {e}")
+            print(f"配置文件 JSON 解析错误: {e}")
+            traceback.print_exc()
+            sys.exit(1)
+        except Exception as e:
+            logger.error(f"加载配置文件失败: {e}", exc_info=True)
+            print(f"加载配置文件失败: {e}")
+            traceback.print_exc()
+            sys.exit(1)
+
+    # 处理命令行参数
+    if args.provider:
+        try:
+            ai.set_provider(args.provider)
+            logger.info(f"命令行指定服务商: {args.provider}")
+        except ValueError as e:
+            print(f"错误: {e}")
+            sys.exit(1)
+
+    if args.model:
+        try:
+            ai.set_model(args.model)
+            logger.info(f"命令行指定模型: {args.model}")
+        except ValueError as e:
+            print(f"错误: {e}")
+            sys.exit(1)
+
+    if args.no_stream:
+        logger.info("流式输出已禁用")
+
+    # --skills: 列出技能后退出
+    if args.skills:
+        rows = [
+            [s.category, s.name, s.description[:40], str(s.usage_count)]
+            for s in skills.list_skills()
+        ]
+        _print_table("可用技能列表", ["分类", "名称", "描述", "使用次数"], rows)
+        sys.exit(0)
+
+    # --mcp: 列出 MCP Server 后退出
+    if args.mcp:
+        stats = mcp.get_stats()
+        rows: list = []
+        for s in mcp.list_servers():
+            status = "✅" if s.enabled else "❌"
+            rows.append([status, s.category, s.name, s.description[:50]])
+        print(f"MCP 服务器 ({stats['enabled']}/{stats['total']} 启用)")
+        _print_table("MCP 列表", ["状态", "分类", "名称", "描述"], rows)
+        sys.exit(0)
+
+    # --web: 启动 Web UI（占位，保持兼容）
+    if args.web:
+        logger.info(f"Web UI 模式启动，端口: {args.port}")
+        try:
+            from web_ui import start_web_server
+            start_web_server(ai, memory, skills, mcp, port=args.port)
+        except ImportError:
+            print("错误: web_ui 模块未找到，请检查安装")
+            logger.error("web_ui 模块导入失败")
+            sys.exit(1)
+        except Exception as e:
+            logger.error(f"启动 Web UI 失败: {e}", exc_info=True)
+            print(f"启动 Web UI 失败: {e}")
+            traceback.print_exc()
+            sys.exit(1)
+        sys.exit(0)
 
     logger.info(f"启动 - 服务商: {ai.provider_name}, 模型: {ai.model}")
 
@@ -381,11 +531,9 @@ def main() -> None:
 
             logger.info(f"用户消息: {user_input[:100]}")
 
+            use_stream = not args.no_stream
+
             if RICH:
-                reply = ""
-                with Status("[cyan]思考中...[/cyan]", spinner="dots"):
-                    for chunk in loop.run_stream(user_input):
-                        reply += chunk
                 console.print(
                     Panel(
                         user_input,
@@ -393,20 +541,31 @@ def main() -> None:
                         border_style="green",
                     )
                 )
-                console.print(
-                    Panel(
-                        Markdown(reply),
-                        title="[bold]AI[/bold]",
-                        border_style="blue",
-                    )
-                )
+                if use_stream:
+                    console.print("[bold blue]AI[/bold]: ", end="")
+                    reply = ""
+                    for chunk in loop.run_stream(user_input):
+                        console.out(chunk, end="")
+                        reply += chunk
+                    console.print()
+                else:
+                    reply = ""
+                    for chunk in loop.run_stream(user_input):
+                        reply += chunk
+                    console.print(Panel(Markdown(reply), title="[bold]AI[/bold]", border_style="blue"))
             else:
-                print("\nAI: ", end="", flush=True)
-                reply = ""
-                for chunk in loop.run_stream(user_input):
-                    print(chunk, end="", flush=True)
-                    reply += chunk
-                print()
+                if use_stream:
+                    print("\nAI: ", end="", flush=True)
+                    reply = ""
+                    for chunk in loop.run_stream(user_input):
+                        print(chunk, end="", flush=True)
+                        reply += chunk
+                    print()
+                else:
+                    reply = ""
+                    for chunk in loop.run_stream(user_input):
+                        reply += chunk
+                    print(f"\nAI: {reply}")
 
             hook_system.trigger(
                 "after_chat",
@@ -417,9 +576,18 @@ def main() -> None:
         except KeyboardInterrupt:
             print("\n")
             logger.info("用户中断")
+        except (ConnectionError, TimeoutError) as e:
+            logger.error(f"网络错误: {e}")
+            traceback.print_exc()
+            print(f"\n[网络错误] {e}，请检查网络连接后重试")
+        except (ValueError, TypeError) as e:
+            logger.error(f"参数错误: {e}")
+            traceback.print_exc()
+            print(f"\n[参数错误] {e}")
         except Exception as e:
-            logger.error(f"错误: {e}", exc_info=True)
-            print(f"\n[错误] {e}")
+            logger.error(f"未预期的错误: {e}", exc_info=True)
+            traceback.print_exc()
+            print(f"\n[错误] {e}，已恢复，请继续输入命令")
 
     logger.info("程序退出")
 

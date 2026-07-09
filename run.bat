@@ -1,5 +1,5 @@
 @echo off
-cd /d "D:\workspace\vs"
+cd /d "%~dp0"
 
 REM Try py launcher first (bypasses Microsoft Store alias)
 where py >nul 2>&1

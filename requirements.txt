@@ -1,6 +1,21 @@
-openai>=1.0.0
-gradio>=4.0.0
+# ── 核心依赖（必需）──
 python-dotenv>=1.0.0
-rich>=13.0.0
-pydantic>=2.0.0
-tiktoken>=0.5.0
+
+# ── 可选依赖 ──
+# AI 对话: pip install openai
+# openai>=1.0.0
+
+# Web UI: pip install gradio
+# gradio>=4.0.0
+
+# 终端美化: pip install rich
+# rich>=13.0.0
+
+# 数据验证: pip install pydantic
+# pydantic>=2.0.0
+
+# Token 计数: pip install tiktoken
+# tiktoken>=0.5.0
+
+# 向量计算加速: pip install numpy
+# numpy>=1.24.0

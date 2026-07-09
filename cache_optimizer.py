@@ -1,11 +1,14 @@
 import hashlib
 import json
+import logging
 from collections import OrderedDict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from context_manager import count_tokens
+
+logger = logging.getLogger(__name__)
 
 CACHE_DIR = Path(__file__).parent / "cache_data"
 
@@ -39,76 +42,80 @@ class LRUCache:
 class PromptCache:
     def __init__(self):
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        self.cache_file: Path = CACHE_DIR / "prefix_cache.json"
-        self.cache: LRUCache = LRUCache(max_size=500)
-        self._load_to_memory()
-        self.stats: Dict[str, int] = {
-            "hits": 0, "misses": 0, "total_tokens": 0, "cached_tokens": 0,
-        }
+        self.cache_file = CACHE_DIR / "prefix_cache.json"
+        self.cache = LRUCache(max_size=500)
+        self.stats = {"hits": 0, "misses": 0, "total_tokens": 0, "cached_tokens": 0}
+        self._dirty = False
+        self._load()
 
-    def _load_to_memory(self) -> None:
+    def _load(self) -> None:
         if self.cache_file.exists():
-            with open(self.cache_file, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                for key, value in data.items():
-                    self.cache.put(key, value)
+            try:
+                with open(self.cache_file, "r", encoding="utf-8") as f:
+                    for k, v in json.load(f).items():
+                        self.cache.put(k, v)
+            except Exception as e:
+                logger.error(f"加载缓存失败 {self.cache_file}: {e}，使用空缓存")
 
     def _save(self) -> None:
-        data = {k: v for k, v in self.cache._data.items()}
-        with open(self.cache_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        if not self._dirty:
+            return
+        try:
+            with open(self.cache_file, "w", encoding="utf-8") as f:
+                json.dump(dict(self.cache._data), f, ensure_ascii=False, indent=2)
+            self._dirty = False
+        except Exception as e:
+            logger.error(f"保存缓存失败 {self.cache_file}: {e}")
+
+    def flush(self) -> None:
+        self._dirty = True
+        self._save()
 
     def _hash(self, text: str) -> str:
         return hashlib.sha256(text.encode()).hexdigest()[:24]
 
-    def get_cached_prefix(
-        self, messages: List[Dict[str, str]]
-    ) -> Optional[Dict[str, Any]]:
-        prefix = self._build_stable_prefix(messages)
-        key = self._hash(prefix)
-        cached = self.cache.get(key)
-        if cached is not None:
-            self.stats["hits"] += 1
-            self.stats["cached_tokens"] += count_tokens(prefix)
-            return cached
-        self.stats["misses"] += 1
-        return None
-
-    def set_cached_prefix(
-        self, messages: List[Dict[str, str]], result: Any
-    ) -> None:
-        prefix = self._build_stable_prefix(messages)
-        key = self._hash(prefix)
-        self.cache.put(key, {
-            "result": result,
-            "time": datetime.now().isoformat(),
-            "prefix_hash": key,
-        })
-        self.stats["total_tokens"] += count_tokens(prefix)
-        self._save()
-
-    def _build_stable_prefix(
-        self, messages: List[Dict[str, str]]
-    ) -> str:
-        stable_parts: List[str] = []
+    def _prefix(self, messages: List[Dict[str, str]]) -> str:
+        parts = []
         for msg in messages:
             if msg["role"] == "system":
-                stable_parts.append(msg["content"])
-            elif msg["role"] == "user" and len(stable_parts) <= 5:
-                stable_parts.append(msg["content"][:200])
-        return "|||".join(stable_parts)
+                parts.append(msg["content"])
+            elif msg["role"] == "user" and len(parts) <= 5:
+                parts.append(msg["content"][:200])
+        return "|||".join(parts)
 
-    def get_hit_rate(self) -> float:
+    def get(self, messages: List[Dict[str, str]]) -> Optional[Dict[str, Any]]:
+        try:
+            key = self._hash(self._prefix(messages))
+            cached = self.cache.get(key)
+            if cached:
+                self.stats["hits"] += 1
+                self.stats["cached_tokens"] += count_tokens(self._prefix(messages))
+                return cached
+            self.stats["misses"] += 1
+            return None
+        except Exception as e:
+            logger.error(f"获取缓存失败: {e}")
+            return None
+
+    def set(self, messages: List[Dict[str, str]], result: Any) -> None:
+        try:
+            prefix = self._prefix(messages)
+            key = self._hash(prefix)
+            self.cache.put(key, {"result": result, "time": datetime.now().isoformat(), "prefix_hash": key})
+            self.stats["total_tokens"] += count_tokens(prefix)
+            self._dirty = True
+        except Exception as e:
+            logger.error(f"写入缓存失败: {e}")
+
+    def hit_rate(self) -> float:
         total = self.stats["hits"] + self.stats["misses"]
-        if total == 0:
-            return 0.0
-        return self.stats["hits"] / total
+        return self.stats["hits"] / total if total else 0.0
 
     def get_stats(self) -> Dict[str, Any]:
         return {
             "hits": self.stats["hits"],
             "misses": self.stats["misses"],
-            "hit_rate": f"{self.get_hit_rate():.1%}",
+            "hit_rate": f"{self.hit_rate():.1%}",
             "total_tokens": self.stats["total_tokens"],
             "cached_tokens": self.stats["cached_tokens"],
             "entries": len(self.cache),
@@ -119,57 +126,21 @@ class CacheFirstLoop:
     def __init__(self):
         self.cache = PromptCache()
 
-    def build_system_prompt(
-        self,
-        base_prompt: str,
-        memory_context: Optional[str] = None,
-        active_skill: Optional[Any] = None,
-    ) -> str:
-        prompt_parts: List[str] = [base_prompt]
-        if memory_context:
-            prompt_parts.append(f"\n\n[用户记忆]\n{memory_context}")
-        if active_skill:
-            prompt_parts.append(f"\n\n[技能模式: {active_skill.name}]")
-            prompt_parts.append(f"技能描述: {active_skill.description}")
-        return "".join(prompt_parts)
+    def check_cache(self, messages: List[Dict[str, str]]) -> Optional[Dict[str, Any]]:
+        return self.cache.get(messages)
 
-    def build_xml_prompt(
-        self,
-        base_prompt: str,
-        memory_context: Optional[str],
-        user_message: str,
-        active_skill: Optional[Any] = None,
-    ) -> str:
-        prompt = '<?xml version="1.0" encoding="UTF-8"?>\n'
-        prompt += "<agent_context>\n"
-        prompt += f"  <system>{base_prompt}</system>\n"
-        if memory_context:
-            prompt += f"  <memory>{memory_context}</memory>\n"
-        if active_skill:
-            prompt += (
-                f"  <skill name=\"{active_skill.name}\">"
-                f"{active_skill.description}</skill>\n"
-            )
-        prompt += "</agent_context>\n"
-        prompt += f"<user_message>{user_message}</user_message>"
-        return prompt
-
-    def check_cache(
-        self, messages: List[Dict[str, str]]
-    ) -> Optional[Dict[str, Any]]:
-        return self.cache.get_cached_prefix(messages)
-
-    def update_cache(
-        self, messages: List[Dict[str, str]], result: Any
-    ) -> None:
-        self.cache.set_cached_prefix(messages, result)
+    def update_cache(self, messages: List[Dict[str, str]], result: Any) -> None:
+        self.cache.set(messages, result)
 
     def get_cache_stats(self) -> Dict[str, Any]:
         return self.cache.get_stats()
 
+    def flush_cache(self) -> None:
+        self.cache.flush()
+
 
 class CostTracker:
-    PRICING: Dict[str, Dict[str, float]] = {
+    PRICING = {
         "deepseek-chat": {"input": 0.14, "output": 0.28, "cache_hit": 0.014},
         "deepseek-reasoner": {"input": 0.55, "output": 2.19, "cache_hit": 0.14},
         "gpt-4o": {"input": 2.50, "output": 10.00, "cache_hit": 1.25},
@@ -182,46 +153,71 @@ class CostTracker:
     }
 
     def __init__(self):
-        self.total_input_tokens: int = 0
-        self.total_output_tokens: int = 0
-        self.total_cache_hit_tokens: int = 0
-        self.total_cost: float = 0.0
-        self.request_count: int = 0
-        self._saved_cost: float = 0.0
+        self.total_input_tokens = 0
+        self.total_output_tokens = 0
+        self.total_cache_hit_tokens = 0
+        self.total_cost = 0.0
+        self.request_count = 0
+        self._saved_cost = 0.0
+        self._load()  # 从磁盘恢复历史数据
 
-    def _get_price(self, model: str) -> Dict[str, float]:
+    def _load(self) -> None:
+        try:
+            stats_file = CACHE_DIR / "cost_stats.json"
+            if stats_file.exists():
+                with open(stats_file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    self.total_input_tokens = data.get("total_input_tokens", 0)
+                    self.total_output_tokens = data.get("total_output_tokens", 0)
+                    self.total_cache_hit_tokens = data.get("total_cache_hit_tokens", 0)
+                    self.total_cost = data.get("total_cost", 0.0)
+                    self.request_count = data.get("request_count", 0)
+                    self._saved_cost = data.get("_saved_cost", 0.0)
+        except Exception as e:
+            logger.error(f"加载成本统计失败: {e}，使用默认值")
+
+    def _save(self) -> None:
+        try:
+            CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            stats_file = CACHE_DIR / "cost_stats.json"
+            with open(stats_file, "w", encoding="utf-8") as f:
+                json.dump({
+                    "total_input_tokens": self.total_input_tokens,
+                    "total_output_tokens": self.total_output_tokens,
+                    "total_cache_hit_tokens": self.total_cache_hit_tokens,
+                    "total_cost": self.total_cost,
+                    "request_count": self.request_count,
+                    "_saved_cost": self._saved_cost,
+                }, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.error(f"保存成本统计失败: {e}")
+
+    def _price(self, model: str) -> Dict[str, float]:
         for key, price in self.PRICING.items():
             if key in model:
                 return price
         return self.PRICING["default"]
 
-    def record_request(
-        self,
-        model: str,
-        input_text: str,
-        output_text: str,
-        cache_hit_tokens: int = 0,
-    ) -> None:
-        price = self._get_price(model)
-        input_tokens = count_tokens(input_text)
-        output_tokens = count_tokens(output_text)
+    def record_request(self, model: str, input_text: str, output_text: str,
+                       cache_hit_tokens: int = 0) -> None:
+        p = self._price(model)
+        in_tok = count_tokens(input_text)
+        out_tok = count_tokens(output_text)
 
-        cost = (
-            (input_tokens / 1_000_000) * price["input"]
-            + (output_tokens / 1_000_000) * price["output"]
-            + (cache_hit_tokens / 1_000_000) * price["cache_hit"]
-        )
+        cost = (in_tok / 1e6) * p["input"] + (out_tok / 1e6) * p["output"] \
+               + (cache_hit_tokens / 1e6) * p["cache_hit"]
 
         if cache_hit_tokens > 0:
-            self._saved_cost += (input_tokens / 1_000_000) * price["input"]
+            self._saved_cost += (in_tok / 1e6) * p["input"]
 
-        self.total_input_tokens += input_tokens
-        self.total_output_tokens += output_tokens
+        self.total_input_tokens += in_tok
+        self.total_output_tokens += out_tok
         self.total_cache_hit_tokens += cache_hit_tokens
         self.total_cost += cost
         self.request_count += 1
 
     def get_stats(self) -> Dict[str, Any]:
+        avg = f"${self.total_cost / self.request_count:.6f}" if self.request_count else "$0"
         return {
             "requests": self.request_count,
             "input_tokens": self.total_input_tokens,
@@ -230,11 +226,7 @@ class CostTracker:
             "total_tokens": self.total_input_tokens + self.total_output_tokens,
             "total_cost": f"${self.total_cost:.4f}",
             "saved_cost": f"${self._saved_cost:.4f}",
-            "avg_cost_per_request": (
-                f"${self.total_cost / self.request_count:.6f}"
-                if self.request_count > 0
-                else "$0"
-            ),
+            "avg_cost_per_request": avg,
         }
 
     def reset(self) -> None:

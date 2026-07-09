@@ -2,7 +2,7 @@ import logging
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional
 
 LOG_DIR = Path(__file__).parent / "logs"
 MAX_LOG_AGE_DAYS = 7

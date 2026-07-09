@@ -2,8 +2,12 @@
 技能系统使用示例
 
 演示如何使用技能系统和技能建议。
+
+用法:
+    python examples/skills_demo.py
 """
 
+import sys
 from skills import SkillManager
 
 
@@ -13,19 +17,29 @@ def main():
     print("=" * 50)
 
     # 初始化技能管理器
-    skill_mgr = SkillManager()
+    try:
+        skill_mgr = SkillManager()
+    except Exception as e:
+        print(f"⚠️  初始化 SkillManager 失败: {e}")
+        sys.exit(1)
 
     # 列出所有技能分类
     print("\n技能分类:")
-    categories = set(s.category for s in skill_mgr.list_skills())
-    for cat in sorted(categories):
-        count = sum(1 for s in skill_mgr.list_skills() if s.category == cat)
-        print(f"  - {cat}: {count} 个技能")
+    try:
+        categories = set(s.category for s in skill_mgr.list_skills())
+        for cat in sorted(categories):
+            count = sum(1 for s in skill_mgr.list_skills() if s.category == cat)
+            print(f"  - {cat}: {count} 个技能")
+    except Exception as e:
+        print(f"  ⚠️  获取分类失败: {e}")
 
     # 列出所有技能
     print("\n所有技能:")
-    for skill in skill_mgr.list_skills():
-        print(f"  [{skill.category}] {skill.name} - {skill.description}")
+    try:
+        for skill in skill_mgr.list_skills():
+            print(f"  [{skill.category}] {skill.name} - {skill.description}")
+    except Exception as e:
+        print(f"  ⚠️  获取技能列表失败: {e}")
 
     # 技能建议
     test_inputs = [
@@ -37,20 +51,28 @@ def main():
 
     print("\n技能建议示例:")
     for text in test_inputs:
-        suggestion = skill_mgr.suggest_skill(text)
-        if suggestion:
-            print(f"  输入: \"{text}\" → 推荐: {suggestion.name}")
-        else:
-            print(f"  输入: \"{text}\" → 无匹配技能")
+        try:
+            suggestion = skill_mgr.suggest_skill(text)
+            if suggestion:
+                print(f"  输入: \"{text}\" → 推荐: {suggestion.name}")
+            else:
+                print(f"  输入: \"{text}\" → 无匹配技能")
+        except Exception as e:
+            print(f"  输入: \"{text}\" → 推荐出错: {e}")
 
     # 获取某个技能的详情
-    skill = skill_mgr.get_skill("代码助手")
-    if skill:
-        print(f"\n技能详情 - {skill.name}:")
-        print(f"  描述: {skill.description}")
-        print(f"  分类: {skill.category}")
-        print(f"  关联工具: {', '.join(skill.tools)}")
-        print(f"  使用次数: {skill.usage_count}")
+    try:
+        skill = skill_mgr.get_skill("代码助手")
+        if skill:
+            print(f"\n技能详情 - {skill.name}:")
+            print(f"  描述: {skill.description}")
+            print(f"  分类: {skill.category}")
+            print(f"  关联工具: {', '.join(skill.tools)}")
+            print(f"  使用次数: {skill.usage_count}")
+        else:
+            print("\n⚠️  '代码助手' 技能不存在")
+    except Exception as e:
+        print(f"\n⚠️  获取技能详情失败: {e}")
 
 
 if __name__ == "__main__":

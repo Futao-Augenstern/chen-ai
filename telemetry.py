@@ -115,6 +115,7 @@ class Histogram:
         self.count: int = 0
         self.min: float = float("inf")
         self.max: float = 0.0
+        self._values: List[float] = []
 
     def record(self, value: float) -> None:
         self.sum += value
@@ -125,6 +126,9 @@ class Histogram:
             if value <= b:
                 self.counts[b] += 1
                 break
+        self._values.append(value)
+        if len(self._values) > 10000:
+            self._values = self._values[-10000:]
 
     def stats(self) -> Dict[str, Any]:
         if self.count == 0:
@@ -147,11 +151,15 @@ class Histogram:
         }
 
     def _percentile(self, p: float) -> float:
-        if self.count == 0:
+        if not self._values:
             return 0.0
-        if self.count == 1:
-            return self.min
-        return self.min + (self.max - self.min) * (p / 100)
+        sorted_vals = sorted(self._values)
+        k = (len(sorted_vals) - 1) * p / 100.0
+        f = int(k)
+        c = f + 1 if f + 1 < len(sorted_vals) else f
+        if f == c:
+            return sorted_vals[f]
+        return sorted_vals[f] + (sorted_vals[c] - sorted_vals[f]) * (k - f)
 
 
 class Counter:
