@@ -143,7 +143,9 @@ class ResilientAPIClient:
         for attempt in range(self.max_retries + 1):
             try:
                 return self.circuit_breaker.call(func, *args, **kwargs)
-            except (CircuitBreakerOpenError, Exception) as e:
+            except CircuitBreakerOpenError:
+                raise
+            except Exception as e:
                 last_exc = e
                 if attempt < self.max_retries:
                     delay = _calc_delay(attempt, self.base_delay, RETRY_MAX_DELAY, 2.0, True)
@@ -158,7 +160,9 @@ class ResilientAPIClient:
         for attempt in range(self.max_retries + 1):
             try:
                 return await self.circuit_breaker.async_call(func, *args, **kwargs)
-            except (CircuitBreakerOpenError, Exception) as e:
+            except CircuitBreakerOpenError:
+                raise
+            except Exception as e:
                 last_exc = e
                 if attempt < self.max_retries:
                     delay = _calc_delay(attempt, self.base_delay, RETRY_MAX_DELAY, 2.0, True)

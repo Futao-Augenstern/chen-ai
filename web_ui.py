@@ -6,6 +6,8 @@ except ImportError:
     gr = None
 
 import traceback
+import tempfile
+import os
 from ai_core import AIChat
 from memory import MemorySystem
 from skills import SkillManager
@@ -137,25 +139,32 @@ def export_chat(
         if not content.strip():
             return None
 
-        # Count messages (assuming each message starts with role line)
+        # Count messages (each line starts with "你:" or "AI:")
         lines = content.splitlines()
-        message_count = sum(1 for line in lines if line.startswith("> **") or line.startswith("**User**") or line.startswith("**Assistant**"))
+        message_count = sum(1 for line in lines if line.startswith("你:") or line.startswith("AI:"))
 
         # If more than 10000 messages, only keep the last 10000
         if message_count > 10000:
-            # Find where to truncate - work backwards from end
             truncated_lines = []
             messages_found = 0
             for line in reversed(lines):
                 truncated_lines.insert(0, line)
-                if line.startswith("> **") or line.startswith("**User**") or line.startswith("**Assistant**"):
+                if line.startswith("你:") or line.startswith("AI:"):
                     messages_found += 1
                     if messages_found >= 10000:
                         break
             content = "\n".join(truncated_lines)
             content = f"[注意：聊天记录过长，仅导出最近 10000 条消息]\n\n{content}"
 
-        return content
+        # Write to temp file for gr.File download
+        fd, tmp_path = tempfile.mkstemp(suffix=".txt", prefix="chat_export_")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(content)
+        except Exception:
+            os.unlink(tmp_path)
+            raise
+        return tmp_path
     except Exception as e:
         error_msg = f"导出对话失败: {e}"
         print(f"[ERROR] export_chat exception:\n{traceback.format_exc()}")
@@ -456,10 +465,12 @@ def create_ui() -> gr.Blocks:
                             value=_init.loop.use_self_reflection,
                             interactive=True,
                         )
-                cache_status = gr.Textbox(label="优化状态", interactive=False, max_lines=1)
+                cache_status = gr.Textbox(label="缓存状态", interactive=False, max_lines=1)
+                compress_status = gr.Textbox(label="压缩状态", interactive=False, max_lines=1)
+                reflect_status = gr.Textbox(label="反思状态", interactive=False, max_lines=1)
                 cache_checkbox.change(toggle_cache, [cache_checkbox, state], [cache_checkbox, cache_status])
-                compress_checkbox.change(toggle_compression, [compress_checkbox, state], [compress_checkbox, cache_status])
-                reflect_checkbox.change(toggle_self_reflection, [reflect_checkbox, state], [reflect_checkbox, cache_status])
+                compress_checkbox.change(toggle_compression, [compress_checkbox, state], [compress_checkbox, compress_status])
+                reflect_checkbox.change(toggle_self_reflection, [reflect_checkbox, state], [reflect_checkbox, reflect_status])
 
                 status = gr.Textbox(label="状态", max_lines=1, interactive=False)
 

@@ -380,7 +380,6 @@ class CodeExecutionTool(BaseTool):
 
         try:
             # 在受限的 globals/locals 中执行代码（沙箱内执行）
-            import io, sys
             old_stdout = sys.stdout
             old_stderr = sys.stderr
             captured_out = io.StringIO()
@@ -546,10 +545,11 @@ class FileTool(BaseTool):
             if operation == "read":
                 if not file_path.exists():
                     return ToolResult(False, "", f"文件不存在: {path}")
-                if file_path.stat().st_size > 1024 * 1024:
-                    return ToolResult(False, "", "文件过大 (>1MB)")
                 with self._safe_open(file_path, "r") as f:
-                    return ToolResult(True, f.read())
+                    result = f.read()
+                    if len(result) > 1024 * 1024:
+                        return ToolResult(False, "", "文件过大 (>1MB)")
+                    return ToolResult(True, result)
             elif operation == "write":
                 file_path.parent.mkdir(parents=True, exist_ok=True)
                 with self._safe_open(file_path, "w") as f:
@@ -654,7 +654,7 @@ class TimeTool(BaseTool):
 
     def execute(self, operation: str = "now", value: str = "", **kwargs: Any) -> ToolResult:
         try:
-            now = datetime.now(timezone(timedelta(hours=8)))
+            now = datetime.now().astimezone()
             if operation == "now":
                 return ToolResult(
                     True,

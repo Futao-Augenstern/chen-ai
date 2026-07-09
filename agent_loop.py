@@ -1515,7 +1515,6 @@ class AgentLoop:
                     tool_choice="auto",
                     temperature=0,
                     max_tokens=AgentConfig.THINK_MAX_TOKENS,
-                    response_format={"type": "json_object"},
                 )
             )
             msg = response.choices[0].message
@@ -1555,11 +1554,6 @@ class AgentLoop:
                 tools=plan["tools"],
                 reasoning="fallback to keyword matching",
             )
-
-    def _think_llm(self, message: str) -> Dict[str, Any]:
-        """兼容旧接口，返回 dict"""
-        plan = self._think_llm_structured(message)
-        return {"tools": plan.tools, "reasoning": plan.reasoning}
 
     def _think_keyword(self, message: str) -> Dict[str, Any]:
         plan: Dict[str, Any] = {"tools": []}
@@ -1620,6 +1614,7 @@ class AgentLoop:
         result_text = "\n".join([
             f"Tool {i+1}: " + (r.content if r.success else f"Failed: {r.error}")
             for i, r in enumerate(tool_results)
+            if r is not None
         ])
 
         prompt = (
@@ -1701,6 +1696,8 @@ class AgentLoop:
         span = tracer.start_span(span_name, message=user_message[:AgentConfig.SPAN_MESSAGE_TRUNCATE])
         metrics.counter("total_requests").add()
 
+        original_user_message = user_message
+
         if self.use_compression:
             memory_ctx = self.memory.get_memory_context()
             user_message = self.prompt_optimizer.optimize(user_message, memory_ctx)
@@ -1753,7 +1750,7 @@ class AgentLoop:
                 self.ai.history, preserve_system=True
             )
 
-        return enhanced_message, user_message, tracer, metrics, span
+        return enhanced_message, original_user_message, tracer, metrics, span
 
     # ------------------------------------------------------------------
     # Finalization (unchanged)
@@ -1792,6 +1789,10 @@ class AgentLoop:
                 return reply
 
         reply = self.ai.chat(enhanced_message)
+        if reply.startswith("[错误]") or reply.startswith("[速率限制错误]") or reply.startswith("[API错误]"):
+            error_info = self._handle_execution_error(Exception(reply), enhanced_message)
+            tracer.add_event("api_error", error_type=error_info["error_type"], error=str(reply))
+            metrics.counter(f"{error_info['error_type']}_errors").add()
         self._finalize(original_msg, reply, enhanced_message, metrics, tracer, span)
         return reply
 

@@ -230,4 +230,10 @@ class CostTracker:
         }
 
     def reset(self) -> None:
-        self.__init__()
+        self.request_count = 0
+        self.total_input_tokens = 0
+        self.total_output_tokens = 0
+        self.total_cache_hit_tokens = 0
+        self.total_cost = 0.0
+        self._saved_cost = 0.0
+        self._save()

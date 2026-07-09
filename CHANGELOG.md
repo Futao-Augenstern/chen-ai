@@ -5,6 +5,36 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.0.2] - 2026-07-09
+
+### 修复
+
+- **Span 泄漏**: `run_stream` 异常路径中未调用 `_finalize()` 导致遥测 Span 永不关闭
+- **并行工具顺序**: `_execute_tools_parallel` 使用 `as_completed` 导致结果顺序与输入不一致，改用 `future→index` 映射
+- **断路器失效**: `ResilientAPIClient.call()` 对 `CircuitBreakerOpenError` 进行重试，完全破坏断路保护。修复为直接向上传播
+- **CostTracker 重置**: `reset()` 调用 `__init__()` 导致从磁盘重新加载历史数据，重置无效
+- **Web UI 导出**: `export_chat` 消息计数模式与 `export_history` 格式不匹配，10000 条截断逻辑永不触发
+- **Web UI 下载**: `gr.File` 组件期望文件路径，`export_chat` 却返回字符串，导致下载失败
+- **AI 环境变量解析**: `AIChat.__init__` 中 `float(os.getenv(...))` 无类型校验，非法值导致崩溃
+- **AI 消息内容**: `message.content` 可能为 `None`（推理模型），未做空值检查
+- **AI 重试机制**: `_retry_request` 的 `except Exception` 捕获了 `KeyboardInterrupt`，Ctrl+C 无法中断
+- **原始消息保存**: `_prepare_message` 在压缩后返回修改后的 `user_message`，导致记忆系统接收压缩文本
+- **遥测装饰器**: `timed` 装饰器未使用 `functools.wraps`，丢失函数元数据
+- **死代码清理**: 移除未使用的 `_think_llm` 方法
+- **错误分类**: 从 network 分支移除重复的 timeout 关键词，`_handle_execution_error` 集成到 `run()` 中
+- **工具时区**: 从硬编码 UTC+8 改为 `datetime.now().astimezone()` 获取系统本地时区
+- **文件读取 TOCTOU**: 文件大小检查改为读取后检查，防止条件竞争
+- **内存增长**: 为 `MemorySystem` 添加 `max_interactions` 上限和 `_prune_interactions()` 淘汰机制
+- **冗余导入**: 删除 `CodeExecutionTool.execute()` 内部的重复 `import io, sys`
+- **提示词压缩统计**: `savings` 从覆盖改为累加，避免统计失真
+
+### 新增
+
+- `--version` / `-V` 命令行参数
+- `MultiAgentCoordinator.set_roles()` / `restore_roles()` 公开 API
+- 版本号统一升级至 1.0.2
+- 测试从 86 扩展到 95 个，覆盖断路器重试、成本重置、提示词压缩统计、环境变量解析、遥测装饰器、内存淘汰、文件读取安全等路径
+
 ## [1.0.1] - 2026-07-09
 
 ### 新增

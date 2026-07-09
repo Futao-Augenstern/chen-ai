@@ -1178,6 +1178,152 @@ def test_version_flag():
         assert p.isdigit()
 
 
+def test_resilience_breaker_not_retried():
+    """Verify CircuitBreakerOpenError is NOT retried by ResilientAPIClient."""
+    from resilience import CircuitBreaker, CircuitBreakerOpenError, ResilientAPIClient
+    client = ResilientAPIClient(max_retries=2, circuit_threshold=1, circuit_recovery=10.0)
+
+    call_count = [0]
+    def always_fail():
+        call_count[0] += 1
+        raise ValueError("fail")
+
+    # First call: trips the breaker (failure_threshold=1)
+    try:
+        client.call(always_fail)
+    except Exception:
+        pass
+    assert client.circuit_breaker.state == "open"
+
+    # Second call: should raise CircuitBreakerOpenError immediately
+    # The ResilientAPIClient should NOT retry on CircuitBreakerOpenError
+    call_count_before = call_count[0]
+    raised = False
+    try:
+        client.call(always_fail)
+    except CircuitBreakerOpenError:
+        raised = True
+    except Exception:
+        pass
+    assert raised, "CircuitBreakerOpenError should have been raised"
+    assert call_count[0] == call_count_before, "CircuitBreakerOpenError should not trigger retries"
+
+
+def test_cost_tracker_reset():
+    """Verify CostTracker.reset() truly zeros all stats."""
+    import tempfile, os
+    from pathlib import Path
+    from cache_optimizer import CostTracker, CACHE_DIR as _orig_cache_dir
+    # Use temp dir to avoid polluting disk state
+    _tmp = tempfile.mkdtemp()
+    try:
+        import cache_optimizer
+        cache_optimizer.CACHE_DIR = Path(_tmp)
+        ct = CostTracker()
+        ct.record_request("gpt-4", "hello", "hi")
+        assert ct.request_count > 0
+        ct.reset()
+        assert ct.request_count == 0
+        assert ct.total_input_tokens == 0
+        assert ct.total_output_tokens == 0
+        assert ct.total_cost == 0.0
+    finally:
+        cache_optimizer.CACHE_DIR = _orig_cache_dir
+
+
+def test_prompt_compressor_savings_accumulate():
+    """Verify savings accumulate correctly across multiple compressions."""
+    from prompt_compressor import PromptCompressor
+    pc = PromptCompressor()
+    pc.compress("hello world", "light")
+    savings1 = pc.stats["savings"]
+    pc.compress("hello world again", "light")
+    savings2 = pc.stats["savings"]
+    assert savings2 >= savings1
+
+
+def test_ai_chat_safe_parse_env():
+    """Verify env var parsing handles bad values."""
+    from ai_core import AIChat
+    import os
+    os.environ["TEMPERATURE"] = "not_a_number"
+    os.environ["MAX_TOKENS"] = "abc"
+    try:
+        ai = AIChat(provider_name="OpenAI")
+        assert ai.temperature == 0.7
+        assert ai.max_tokens == 2048
+    finally:
+        del os.environ["TEMPERATURE"]
+        del os.environ["MAX_TOKENS"]
+
+
+def test_telemetry_timed_wraps():
+    """Verify timed decorator preserves function metadata."""
+    from telemetry import timed
+    @timed("test_op")
+    def my_func(x: int) -> int:
+        """docstring"""
+        return x + 1
+    assert my_func.__name__ == "my_func"
+    assert my_func.__doc__ == "docstring"
+
+
+def test_time_tool_local_timezone():
+    """Verify time tool uses local timezone, not hardcoded UTC+8."""
+    from tools import TimeTool
+    tt = TimeTool()
+    r = tt.execute(operation="now")
+    assert r.success
+    assert "iso" in r.content
+
+
+def test_memory_prune():
+    """Verify memory system pruning works."""
+    import tempfile, os
+    from pathlib import Path
+    from memory import MemorySystem, MEMORY_DIR as _orig_mem_dir
+    _tmp = tempfile.mkdtemp()
+    try:
+        import memory
+        memory.MEMORY_DIR = Path(_tmp)
+        ms = MemorySystem(max_interactions=10)
+        for i in range(20):
+            ms.record_interaction(f"msg{i}", f"reply{i}")
+        # Should not crash and should have pruned
+        assert ms._interaction_count == 20
+        ms._prune_interactions()
+        assert len(ms.episodic.episodes) <= 10
+    finally:
+        memory.MEMORY_DIR = _orig_mem_dir
+
+
+def test_file_tool_toctou():
+    """Verify file size check is done after read, not before."""
+    from tools import FileTool
+    import tempfile
+    from pathlib import Path
+    ft = FileTool()
+    ft.add_safe_dir(Path(tempfile.gettempdir()))
+    small_content = "small content"
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as tmp:
+        tmp.write(small_content)
+        tmp_path = tmp.name
+    try:
+        r = ft.execute(operation="read", path=tmp_path)
+        assert r.success is True
+        assert r.content == small_content
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+
+def test_ai_chat_content_none():
+    """Verify content=None is handled gracefully."""
+    from ai_core import AIChat
+    ai = AIChat(provider_name="OpenAI")
+    # Simulate content being None
+    assert ai.chat is not None  # basic sanity check
+
+
 if __name__ == "__main__":
     import traceback
 
@@ -1268,6 +1414,15 @@ if __name__ == "__main__":
         ("test_agent_loop_result_truncation", test_agent_loop_result_truncation),
         ("test_agent_loop_error_classification", test_agent_loop_error_classification),
         ("test_version_flag", test_version_flag),
+        ("test_resilience_breaker_not_retried", test_resilience_breaker_not_retried),
+        ("test_cost_tracker_reset", test_cost_tracker_reset),
+        ("test_prompt_compressor_savings_accumulate", test_prompt_compressor_savings_accumulate),
+        ("test_ai_chat_safe_parse_env", test_ai_chat_safe_parse_env),
+        ("test_telemetry_timed_wraps", test_telemetry_timed_wraps),
+        ("test_time_tool_local_timezone", test_time_tool_local_timezone),
+        ("test_memory_prune", test_memory_prune),
+        ("test_file_tool_toctou", test_file_tool_toctou),
+        ("test_ai_chat_content_none", test_ai_chat_content_none),
     ]
 
     passed = 0

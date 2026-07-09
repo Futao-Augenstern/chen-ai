@@ -25,7 +25,7 @@ class PromptCompressor:
             comp = count_tokens(text)
             self.stats["original_tokens"] += orig
             self.stats["compressed_tokens"] += comp
-            self.stats["savings"] = self.stats["original_tokens"] - self.stats["compressed_tokens"]
+            self.stats["savings"] += max(0, orig - comp)
             return text
         except Exception as e:
             logger.error(f"压缩失败: {e}，返回原始文本")

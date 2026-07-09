@@ -1,5 +1,6 @@
 import time
 import json
+import functools
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -230,6 +231,7 @@ def get_metrics() -> Metrics:
 
 def timed(span_name: str):
     def decorator(func):
+        @functools.wraps(func)
         def wrapper(*args, **kwargs):
             tracer = get_tracer()
             span = tracer.start_span(span_name)

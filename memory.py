@@ -1410,12 +1410,18 @@ class MemorySystem:
         (r"\u6211\u4e0d\u559c\u6b22\s*(.+)", "dislike"),
     ]
 
-    def __init__(self):
-        """初始化记忆系统。"""
+    def __init__(self, max_interactions: int = 10000):
+        """初始化记忆系统。
+
+        Args:
+            max_interactions: 最大交互记录数，超过则淘汰最旧记录。
+        """
+        self.max_interactions = max_interactions
         self.working = WorkingMemory()
         self.episodic = EpisodicMemory()
         self.semantic = SemanticMemory()
         self.rag_store = RAGStore()
+        self._interaction_count = 0
 
     def learn_patterns(self, user_message: str) -> None:
         """从用户消息中自动学习模式（偏好、事实等）。
@@ -1441,6 +1447,10 @@ class MemorySystem:
         """
         self.working.add("user", user_msg)
         self.working.add("assistant", ai_reply)
+        self._interaction_count += 1
+        # 定期淘汰最旧交互记录
+        if self._interaction_count % 100 == 0 and self._interaction_count > self.max_interactions:
+            self._prune_interactions()
 
     def save_session(self, title: Optional[str] = None) -> None:
         """保存当前会话为情景记忆。
@@ -1463,6 +1473,23 @@ class MemorySystem:
             value: 偏好值。
         """
         self.semantic.set_preference(key, value)
+
+    def _prune_interactions(self) -> None:
+        """淘汰最旧的交互记录，防止内存/磁盘无限增长。
+
+        保留最近 max_interactions 条交互，删除更早的记录。
+        """
+        try:
+            # 淘汰最旧的情景记忆
+            if len(self.episodic.episodes) > self.max_interactions:
+                self.episodic.episodes = self.episodic.episodes[-self.max_interactions:]
+                self.episodic._save()
+            # 淘汰旧的事实（保留最近 5000 条）
+            if len(self.semantic.data.get("facts", [])) > 5000:
+                self.semantic.data["facts"] = self.semantic.data["facts"][-5000:]
+                self.semantic._save()
+        except Exception as e:
+            logger.warning(f"淘汰交互记录失败: {e}")
 
     def get_memory_context(self) -> str:
         """获取当前记忆上下文，用于注入到 LLM prompt。

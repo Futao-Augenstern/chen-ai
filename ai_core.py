@@ -1,7 +1,7 @@
 import os
 import time
 import asyncio
-from typing import Any, Dict, Generator, List, Optional, Tuple
+from typing import Any, Callable, Dict, Generator, List, Optional, Tuple
 from config import get_provider_config, load_providers
 
 try:
@@ -30,9 +30,9 @@ class AIChat:
         self.provider_name: Optional[str] = None
         self.api_key: Optional[str] = None
         self.base_url: Optional[str] = None
-        self.temperature = temperature or float(os.getenv("TEMPERATURE", "0.7"))
-        self.max_tokens = max_tokens or int(os.getenv("MAX_TOKENS", "2048"))
-        self.max_history = int(os.getenv("MAX_HISTORY", "100"))
+        self.temperature = temperature or self._safe_parse_env("TEMPERATURE", "0.7", float)
+        self.max_tokens = max_tokens or self._safe_parse_env("MAX_TOKENS", "2048", int)
+        self.max_history = self._safe_parse_env("MAX_HISTORY", "100", int)
         self.system_prompt = os.getenv("SYSTEM_PROMPT", "你是一个智能助手，请用中文回答用户的问题。")
         self.default_system_prompt = self.system_prompt
         self.model: Optional[str] = None
@@ -56,6 +56,14 @@ class AIChat:
         "Together AI": "TOGETHER_API_KEY",
         "硅基流动": "SILICONFLOW_API_KEY",
     }
+
+    @staticmethod
+    def _safe_parse_env(env_var: str, default: str, converter: Callable) -> Any:
+        """Parse env var with fallback to default on ValueError."""
+        try:
+            return converter(os.getenv(env_var, default))
+        except (ValueError, TypeError):
+            return converter(default)
 
     def _get_provider_api_key(self, name: str) -> str:
         env_key = self._API_KEY_MAP.get(name, "OPENAI_API_KEY")
@@ -123,6 +131,8 @@ class AIChat:
         for attempt in range(max_retries):
             try:
                 return func(), None
+            except (KeyboardInterrupt, SystemExit):
+                raise
             except RateLimitError as e:
                 if attempt < max_retries - 1:
                     time.sleep(2 ** (attempt + 1))
@@ -140,6 +150,8 @@ class AIChat:
         for attempt in range(max_retries):
             try:
                 return await func(), None
+            except (KeyboardInterrupt, SystemExit):
+                raise
             except RateLimitError as e:
                 if attempt < max_retries - 1:
                     await asyncio.sleep(2 ** (attempt + 1))
@@ -171,7 +183,7 @@ class AIChat:
             ), max_retries
         )
 
-        reply = result.choices[0].message.content if result else error
+        reply = (result.choices[0].message.content or "") if result else error
         self.history.append({"role": "assistant", "content": reply})
         return reply
 
