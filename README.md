@@ -14,16 +14,16 @@ English | [中文](README_CN.md)
 
 ## Why chen-ai?
 
-| Feature | chen-ai | Fabric | Aider | Open Interpreter |
-|---------|---------|--------|-------|-----------------|
-| Zero-dependency core | ✅ | ❌ | ❌ | ❌ |
-| Sandbox code execution | ✅ AST-level | ❌ | ❌ | ✅ subprocess |
-| 12 providers | ✅ | ✅ | ✅ | ✅ |
-| Plan-Execute Agent | ✅ | ❌ | ❌ | ❌ |
-| Three-layer memory | ✅ | ❌ | ❌ | ❌ |
-| MCP Server ecosystem | ✅ 35 presets | ❌ | ❌ | ❌ |
-| CLI + Web UI | ✅ | ✅ | ✅ | ✅ |
-| Pure Python | ✅ | ✅ | ✅ | ✅ |
+| Feature | chen-ai | Open Interpreter | LangChain | AutoGPT | CrewAI |
+|---------|---------|-----------------|-----------|---------|--------|
+| Zero-dependency core | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Sandbox code execution | ✅ AST-level | ✅ subprocess | ❌ | ❌ | ❌ |
+| 12 providers | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Plan-Execute Agent | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Three-layer memory | ✅ | ❌ | ✅ basic | ✅ basic | ❌ |
+| MCP Server ecosystem | ✅ 35 presets | ❌ | ❌ | ❌ | ❌ |
+| CLI + Web UI | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Pure Python | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 ---
 
