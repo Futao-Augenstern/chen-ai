@@ -1,4 +1,5 @@
 import json
+import logging
 import subprocess
 import signal
 import os
@@ -6,6 +7,8 @@ import time
 from pathlib import Path
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 MCP_DIR = Path(__file__).parent / "mcp_data"
 MCP_CONFIG_FILE = MCP_DIR / "mcp_config.json"
@@ -487,11 +490,18 @@ class MCPManager:
 
     def _load(self) -> None:
         if MCP_CONFIG_FILE.exists():
-            with open(MCP_CONFIG_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            try:
+                with open(MCP_CONFIG_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
                 for server_data in data:
-                    server = MCPServer.from_dict(server_data)
-                    self.servers[server.name] = server
+                    try:
+                        server = MCPServer.from_dict(server_data)
+                        self.servers[server.name] = server
+                    except (KeyError, TypeError, ValueError) as e:
+                        logger.warning(f"跳过损坏的 MCP 配置项: {e}")
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning(f"MCP 配置文件读取失败: {e}，使用预设配置")
+                self.servers = {}
             # Merge in any new preset servers not yet in saved config
             for preset in PRESET_MCP_SERVERS:
                 if preset.name not in self.servers:

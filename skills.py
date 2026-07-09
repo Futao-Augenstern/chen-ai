@@ -1,8 +1,11 @@
 import json
+import logging
 import os
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 SKILLS_DIR = Path(__file__).parent / "skills_data"
 SKILLS_FILE = SKILLS_DIR / "skills.json"
@@ -1532,12 +1535,23 @@ class SkillManager:
 
     def _load(self):
         if SKILLS_FILE.exists():
-            with open(SKILLS_FILE, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            try:
+                with open(SKILLS_FILE, "r", encoding="utf-8") as f:
+                    data = json.load(f)
                 for skill_data in data:
-                    skill = Skill.from_dict(skill_data)
+                    try:
+                        skill = Skill.from_dict(skill_data)
+                        self.skills[skill.name] = skill
+                    except (KeyError, TypeError, ValueError) as e:
+                        logger.warning(f"跳过损坏的技能配置项: {e}")
+                self._last_mtime = SKILLS_FILE.stat().st_mtime
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning(f"技能配置文件读取失败: {e}，使用预设技能")
+                self.skills = {}
+                for skill in PRESET_SKILLS:
                     self.skills[skill.name] = skill
-            self._last_mtime = SKILLS_FILE.stat().st_mtime
+                self._dirty = True
+                self._save()
         else:
             for skill in PRESET_SKILLS:
                 self.skills[skill.name] = skill

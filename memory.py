@@ -1,12 +1,16 @@
 import json
+import logging
 import math
 import os
 import random as _random
 import re
 import tempfile
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
+
+logger = logging.getLogger(__name__)
 
 # ── numpy 为可选依赖 ──
 try:
@@ -38,14 +42,36 @@ def _py_cosine(vec1: List[float], vec2: List[float]) -> float:
 
 
 def _atomic_write(filepath: Path, data: Any) -> None:
-    """原子写入 JSON 文件，避免写入过程中断导致数据损坏。"""
+    """原子写入 JSON 文件，避免写入过程中断导致数据损坏。
+
+    在目标目录创建临时文件后 os.replace，同一文件系统保证原子性。
+    跨文件系统时回退到 shutil.move（非原子但可靠）。
+    并发写入时自动重试（最多 3 次）。
+    """
+    import shutil
     dirpath = filepath.parent
     dirpath.mkdir(parents=True, exist_ok=True)
     fd, tmppath = tempfile.mkstemp(dir=str(dirpath), suffix=".tmp", prefix=".mem_")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
-        os.replace(tmppath, str(filepath))
+        # 并发写入时重试
+        for attempt in range(3):
+            try:
+                os.replace(tmppath, str(filepath))
+                return
+            except OSError:
+                if attempt < 2:
+                    time.sleep(0.01 * (attempt + 1))
+                    continue
+                # 跨文件系统时 os.replace 可能失败，回退到 shutil.move
+                try:
+                    shutil.move(tmppath, str(filepath))
+                except OSError:
+                    # 最终回退：直接写入
+                    with open(filepath, "w", encoding="utf-8") as f:
+                        json.dump(data, f, ensure_ascii=False, indent=2)
+                return
     except Exception:
         try:
             os.unlink(tmppath)
@@ -251,10 +277,16 @@ class EpisodicMemory:
         self.episodes: List[Dict[str, Any]] = self._load()
 
     def _load(self) -> List[Dict[str, Any]]:
-        """从磁盘加载情景数据。"""
+        """从磁盘加载情景数据。文件损坏时自动恢复。"""
         if self.file.exists():
-            with open(self.file, "r", encoding="utf-8") as f:
-                return json.load(f)
+            try:
+                with open(self.file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, list):
+                    return data
+                logger.warning("情景记忆文件格式异常，重置为空")
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning(f"情景记忆文件读取失败: {e}，重置为空")
         return []
 
     def _save(self) -> None:
@@ -1094,10 +1126,16 @@ class SemanticMemory:
         self._rebuild_index()
 
     def _load(self) -> Dict[str, Any]:
-        """从磁盘加载语义记忆数据。"""
+        """从磁盘加载语义记忆数据。文件损坏时自动恢复。"""
         if self.file.exists():
-            with open(self.file, "r", encoding="utf-8") as f:
-                return json.load(f)
+            try:
+                with open(self.file, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, dict):
+                    return data
+                logger.warning("语义记忆文件格式异常，重置为空")
+            except (json.JSONDecodeError, OSError) as e:
+                logger.warning(f"语义记忆文件读取失败: {e}，重置为空")
         return {"preferences": {}, "facts": []}
 
     def _save(self) -> None:
@@ -1580,12 +1618,14 @@ class MemorySystem:
             for k, v in data["semantic"].get("preferences", {}).items():
                 self.semantic.set_preference(k, v)
             for fact in data["semantic"].get("facts", []):
-                self.semantic.add_fact(fact["key"], fact["value"])
+                self.semantic.add_fact(
+                    fact.get("key", ""), fact.get("value", "")
+                )
         if "episodes" in data:
             for ep in data["episodes"]:
                 self.episodic.add(
-                    ep["title"],
-                    ep["summary"],
+                    ep.get("title", ""),
+                    ep.get("summary", ""),
                     ep.get("tags", []),
                     importance=ep.get("importance", 5),
                 )

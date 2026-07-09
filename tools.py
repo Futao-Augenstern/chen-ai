@@ -243,7 +243,14 @@ class CodeExecutionTool(BaseTool):
     DANGEROUS_KEYWORDS: List[bytes] = [
         b"os.", b"sys.", b"subprocess", b"shutil", b"importlib",
         b"__import__", b"eval(", b"exec(", b"compile(",
-        b"open(", b"Socket", b"urllib", b"requests",
+        b"open(", b"socket", b"urllib", b"requests",
+        b"ctypes", b"multiprocessing", b"signal", b"gc.",
+        b"sysconfig", b"atexit", b"codeop",
+    ]
+
+    DANGEROUS_CALL_NAMES: List[str] = [
+        "eval", "exec", "compile", "__import__", "getattr", "setattr",
+        "delattr", "globals", "locals", "vars", "breakpoint", "help",
     ]
 
     DEFAULT_ALLOW_IMPORTS: List[str] = [
@@ -274,10 +281,32 @@ class CodeExecutionTool(BaseTool):
     # ---- 安全校验 ----
 
     def _is_safe(self, code: str) -> Tuple[bool, str]:
+        """多层安全检查：字节匹配 + AST 调用名检查。
+
+        Returns:
+            (is_safe, error_message)
+        """
+        # 第一层：字节匹配黑名单
         code_bytes = code.encode("utf-8", errors="ignore")
         for kw in self.DANGEROUS_KEYWORDS:
             if kw in code_bytes:
                 return False, f"代码包含禁止的关键词: {kw.decode()}"
+
+        # 第二层：AST 检查危险函数调用（如 getattr/globals 等绕过手段）
+        try:
+            tree = ast.parse(code)
+        except SyntaxError as e:
+            return False, f"代码语法错误: {e}"
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Name) and node.func.id in self.DANGEROUS_CALL_NAMES:
+                    return False, f"代码包含禁止的函数调用: {node.func.id}()"
+                if isinstance(node.func, ast.Attribute):
+                    # 检查 getattr 等作为属性访问的情况
+                    if node.func.attr in self.DANGEROUS_CALL_NAMES:
+                        return False, f"代码包含禁止的函数调用: {node.func.attr}()"
+
         return True, ""
 
     def _check_imports(self, code: str) -> Tuple[bool, str]:
@@ -315,6 +344,13 @@ class CodeExecutionTool(BaseTool):
     @property
     def safe_globals(self) -> Dict[str, Any]:
         """返回受限的全局命名空间。"""
+        safe_imports = self.allow_imports
+
+        def _safe_import(name, *args, **kwargs):
+            if name in safe_imports:
+                return __import__(name, *args, **kwargs)
+            raise ImportError(f"不允许导入模块: {name}")
+
         return {"__builtins__": {
             "abs": abs, "all": all, "any": any, "bool": bool,
             "chr": chr, "dict": dict, "divmod": divmod, "enumerate": enumerate,
@@ -324,6 +360,7 @@ class CodeExecutionTool(BaseTool):
             "reversed": reversed, "round": round, "set": set, "slice": slice,
             "sorted": sorted, "str": str, "sum": sum, "tuple": tuple,
             "type": type, "zip": zip, "True": True, "False": False, "None": None,
+            "__import__": _safe_import,
         }}
 
     @property
@@ -341,24 +378,25 @@ class CodeExecutionTool(BaseTool):
         if not import_ok:
             return ToolResult(False, "", import_reason)
 
-        tmp_path = ""
         try:
-            with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".py", delete=False, encoding="utf-8"
-            ) as tmp:
-                tmp.write(code)
-                tmp_path = tmp.name
+            # 在受限的 globals/locals 中执行代码（沙箱内执行）
+            import io, sys
+            old_stdout = sys.stdout
+            old_stderr = sys.stderr
+            captured_out = io.StringIO()
+            captured_err = io.StringIO()
+            sys.stdout = captured_out
+            sys.stderr = captured_err
 
-            result = subprocess.run(
-                ["python", tmp_path],
-                capture_output=True,
-                text=True,
-                timeout=self.max_execution_time,
-                cwd=str(Path.cwd()),
-            )
-            output = result.stdout
-            if result.stderr:
-                output += "\n[stderr]\n" + result.stderr
+            try:
+                exec(code, self.safe_globals, self.safe_locals)
+            finally:
+                sys.stdout = old_stdout
+                sys.stderr = old_stderr
+
+            output = captured_out.getvalue()
+            if captured_err.getvalue():
+                output += "\n[stderr]\n" + captured_err.getvalue()
 
             # 截断超长输出
             if len(output) > self.max_output_size:
@@ -369,21 +407,8 @@ class CodeExecutionTool(BaseTool):
 
             return ToolResult(True, output.strip() or "(无输出)")
 
-        except subprocess.TimeoutExpired:
-            return ToolResult(
-                False, "",
-                f"代码执行超时 ({self.max_execution_time}秒)",
-            )
-        except FileNotFoundError:
-            return ToolResult(False, "", "Python 未安装或不在 PATH 中")
         except Exception as e:
             return ToolResult(False, "", str(e))
-        finally:
-            if tmp_path:
-                try:
-                    Path(tmp_path).unlink(missing_ok=True)
-                except Exception:
-                    pass
 
 
 # ============================================================
@@ -499,6 +524,13 @@ class FileTool(BaseTool):
                 continue
         return False
 
+    def _safe_open(self, file_path: Path, mode: str) -> Any:
+        """安全打开文件，读写前二次验证路径。"""
+        resolved = file_path.resolve()
+        if not self._is_safe_path(resolved):
+            raise PermissionError(f"路径不在安全目录内: {resolved}")
+        return open(resolved, mode, encoding="utf-8")
+
     def execute(
         self,
         operation: str = "",
@@ -516,11 +548,11 @@ class FileTool(BaseTool):
                     return ToolResult(False, "", f"文件不存在: {path}")
                 if file_path.stat().st_size > 1024 * 1024:
                     return ToolResult(False, "", "文件过大 (>1MB)")
-                with open(file_path, "r", encoding="utf-8") as f:
+                with self._safe_open(file_path, "r") as f:
                     return ToolResult(True, f.read())
             elif operation == "write":
                 file_path.parent.mkdir(parents=True, exist_ok=True)
-                with open(file_path, "w", encoding="utf-8") as f:
+                with self._safe_open(file_path, "w") as f:
                     f.write(content or "")
                 return ToolResult(True, f"文件已写入: {path}")
             elif operation == "list":
@@ -567,7 +599,10 @@ class JSONTool(BaseTool):
             return None
         if "[" in query and "]" in query:
             base = query[:query.index("[")]
-            idx = int(query[query.index("[") + 1:query.index("]")])
+            try:
+                idx = int(query[query.index("[") + 1:query.index("]")])
+            except (ValueError, IndexError):
+                return None
             if base:
                 data = data.get(base, {})
             if isinstance(data, list) and 0 <= idx < len(data):
