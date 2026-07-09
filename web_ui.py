@@ -676,3 +676,21 @@ def create_ui() -> gr.Blocks:
 if __name__ == "__main__":
     demo = create_ui()
     demo.launch(server_name="0.0.0.0", server_port=7860, share=False)
+
+
+def start_web_server(ai, memory, skills, mcp, port: int = 7860, server_name: str = "127.0.0.1") -> None:
+    """启动 Web UI 服务（供 main.py --web 调用）。
+
+    Args:
+        ai: AIChat 实例（预留，当前 create_ui 内部创建）。
+        memory: MemorySystem 实例（预留）。
+        skills: SkillManager 实例（预留）。
+        mcp: MCPManager 实例（预留）。
+        port: 监听端口，默认 7860。
+        server_name: 监听地址，默认 127.0.0.1。
+    """
+    import logging
+    logger = logging.getLogger(__name__)
+    logger.info(f"Web UI 启动: {server_name}:{port}")
+    demo = create_ui()
+    demo.launch(server_name=server_name, server_port=port, share=False)

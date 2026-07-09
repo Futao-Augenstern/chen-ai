@@ -5,14 +5,16 @@
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
+[![Version](https://img.shields.io/badge/Version-1.0.1-blue.svg)]()
 
 ## 功能特性
 
-- **多模型支持** - 支持 OpenAI、DeepSeek、通义千问、Kimi、智谱 GLM、百度文心、Groq、硅基流动等 10+ 服务商
-- **记忆系统** - 三层记忆架构（工作记忆 + 情景记忆 + 语义记忆），支持对话历史持久化
-- **技能系统** - 40+ 预设技能，可扩展的技能框架，支持关键词智能推荐
-- **工具调用** - ReAct Agent 模式，7 个内置工具，支持并行工具执行
-- **MCP 服务器** - 兼容 Model Context Protocol，20+ 预设 MCP Server 配置
+- **多模型支持** - 支持 OpenAI、DeepSeek、通义千问、Kimi、智谱 GLM、百度文心、Groq、硅基流动等 12 家服务商
+- **记忆系统** - 三层记忆架构（工作记忆 + 情景记忆 + 语义记忆），支持向量语义检索和 RAG 文档检索
+- **技能系统** - 73 个预设技能，可扩展的技能框架，支持关键词智能推荐
+- **工具调用** - ReAct Agent 模式，11 个内置工具，支持并行工具执行，支持 Plan-Execute Agent 模式
+- **多 Agent 协作** - 支持多 Agent 协作框架，AgentConfig 配置常量
+- **MCP 服务器** - 兼容 Model Context Protocol，35 个预设 MCP Server 配置，支持 SSE/Streamable HTTP 传输协议
 - **Web 界面** - 基于 Gradio 的 Web UI，5 个功能 Tab
 - **命令行界面** - 支持交互式命令行对话，20+ 条斜杠命令
 - **缓存优化** - 前缀缓存 + 提示词压缩，减少 token 消耗
@@ -23,8 +25,14 @@
 
 ### 安装依赖
 
+核心功能零依赖，所有依赖（openai/gradio/rich/pydantic/tiktoken/numpy）都为可选：
+
 ```bash
-pip install -r requirements.txt
+# 基础安装（仅核心功能）
+pip install -e .
+
+# 完整安装（包含所有可选依赖）
+pip install -e ".[full]"
 ```
 
 ### 配置环境变量
@@ -104,6 +112,8 @@ chen-ai/
 ## 开发
 
 ### 运行测试
+
+当前共 80 个测试用例，覆盖核心功能、记忆系统、技能系统、工具调用和 MCP 服务器。
 
 ```bash
 # 使用自带测试框架

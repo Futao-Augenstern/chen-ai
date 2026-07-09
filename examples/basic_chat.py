@@ -30,7 +30,7 @@ def main():
         chat = AIChat(
             provider=os.getenv("PROVIDER", "OpenAI"),
             model=os.getenv("OPENAI_MODEL", "gpt-3.5-turbo"),
-            system_prompt=os.getenv("SYSTEM_PROMT", "你是一个有帮助的助手。"),
+            system_prompt=os.getenv("SYSTEM_PROMPT", "你是一个有帮助的助手。"),
         )
     except Exception as e:
         print(f"⚠️  初始化 AIChat 失败: {e}")

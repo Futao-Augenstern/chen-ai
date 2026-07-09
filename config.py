@@ -38,7 +38,7 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         {
             "name": "deepseek",
             "api_key_env": "DEEPSEEK_API_KEY",
-            "base_url": "https://api.deepseek.com/v1",
+            "base_url": "https://api.deepseek.com",
             "default_model": "deepseek-chat",
         },
     ]
