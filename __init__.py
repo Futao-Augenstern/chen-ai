@@ -4,7 +4,7 @@
 提供 Skills 管理、MCP Server 集成、向量记忆检索、Plan-Execute 多模态
 Agent Loop 等核心能力。
 
-版本: 1.0.1
+版本: 1.0.2
 """
 
 __version__ = "1.0.2"

@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from utils import atomic_write_json
+
 TELEMETRY_DIR = Path(__file__).parent / "telemetry"
 TELEMETRY_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -99,8 +101,7 @@ class Tracer:
                 for t in self.traces
             ],
         }
-        with open(output_file, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        atomic_write_json(output_file, data)
 
     def clear(self) -> None:
         self.traces.clear()

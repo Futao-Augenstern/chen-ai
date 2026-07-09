@@ -5,6 +5,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from utils import atomic_write_json
+
 logger = logging.getLogger(__name__)
 
 SKILLS_DIR = Path(__file__).parent / "skills_data"
@@ -1561,8 +1563,7 @@ class SkillManager:
     def _save(self):
         SKILLS_DIR.mkdir(parents=True, exist_ok=True)
         data = [s.to_dict() for s in self.skills.values()]
-        with open(SKILLS_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        atomic_write_json(SKILLS_FILE, data)
         self._dirty = False
         if SKILLS_FILE.exists():
             self._last_mtime = SKILLS_FILE.stat().st_mtime

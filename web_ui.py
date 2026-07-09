@@ -373,7 +373,7 @@ def export_mcp_config(
 def create_ui() -> gr.Blocks:
     """Create the Gradio UI with session-scoped state to avoid multi-user concurrency issues."""
     with gr.Blocks(
-        title="AI 智能助手 v1.0.1",
+        title="AI 智能助手 v1.0.2",
         theme=gr.themes.Soft(primary_hue="blue", secondary_hue="slate"),
         css="""
         .panel { padding: 10px; background: var(--background-fill-secondary); border-radius: 8px; margin-bottom: 10px; }
@@ -387,7 +387,7 @@ def create_ui() -> gr.Blocks:
         _init = SessionState()
         provider_names = get_provider_names()
 
-        gr.Markdown("# 🤖 AI 智能助手 v1.0.1")
+        gr.Markdown("# 🤖 AI 智能助手 v1.0.2")
         gr.Markdown(
             "融合 **Reasonix** Cache-First + **Claude Code** 记忆 + **Codex** Agent Loop + "
             "**Hermes Agent** 技能系统 + **OpenClaw** 持久记忆"

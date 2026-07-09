@@ -1324,6 +1324,43 @@ def test_ai_chat_content_none():
     assert ai.chat is not None  # basic sanity check
 
 
+def test_atomic_write_json():
+    """Verify atomic JSON write creates and reads back correctly."""
+    from utils import atomic_write_json
+    import tempfile
+    tmpdir = Path(tempfile.mkdtemp())
+    try:
+        fp = tmpdir / "test_atomic.json"
+        data = {"key": "value", "num": 42}
+        atomic_write_json(fp, data)
+        assert fp.exists()
+        with open(fp, "r", encoding="utf-8") as f:
+            loaded = json.loads(f.read())
+        assert loaded["key"] == "value"
+        assert loaded["num"] == 42
+    finally:
+        import shutil
+        shutil.rmtree(str(tmpdir), ignore_errors=True)
+
+
+def test_atomic_write_json_overwrite():
+    """Verify atomic write overwrites existing file correctly."""
+    from utils import atomic_write_json
+    import tempfile
+    tmpdir = Path(tempfile.mkdtemp())
+    try:
+        fp = tmpdir / "test_overwrite.json"
+        atomic_write_json(fp, {"a": 1})
+        atomic_write_json(fp, {"b": 2})
+        with open(fp, "r", encoding="utf-8") as f:
+            loaded = json.loads(f.read())
+        assert "a" not in loaded
+        assert loaded["b"] == 2
+    finally:
+        import shutil
+        shutil.rmtree(str(tmpdir), ignore_errors=True)
+
+
 if __name__ == "__main__":
     import traceback
 
@@ -1423,6 +1460,8 @@ if __name__ == "__main__":
         ("test_memory_prune", test_memory_prune),
         ("test_file_tool_toctou", test_file_tool_toctou),
         ("test_ai_chat_content_none", test_ai_chat_content_none),
+        ("test_atomic_write_json", test_atomic_write_json),
+        ("test_atomic_write_json_overwrite", test_atomic_write_json_overwrite),
     ]
 
     passed = 0

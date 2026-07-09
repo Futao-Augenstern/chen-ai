@@ -27,13 +27,19 @@
 - **内存增长**: 为 `MemorySystem` 添加 `max_interactions` 上限和 `_prune_interactions()` 淘汰机制
 - **冗余导入**: 删除 `CodeExecutionTool.execute()` 内部的重复 `import io, sys`
 - **提示词压缩统计**: `savings` 从覆盖改为累加，避免统计失真
+- **非原子写入**: `MCPManager._save()`、`PromptCache._save()`、`CostTracker._save()`、`SkillManager._save()`、`Tracer.export()` 共 5 处使用 `open(w)` 直接写入，存在崩溃时数据损坏风险。修复为通过 `utils.atomic_write_json()` 原子写入
+- **Web UI 版本号**: 两处硬编码 `v1.0.1` 未随版本升级更新
+- **`__init__.py` 版本注释**: 文档字符串中版本号仍为 `1.0.1`
+- **错误恢复策略**: `run()` 中 `_handle_execution_error` 分类了错误但从未执行恢复策略（重试/降级）。修复为在 `strategy=retry` 时自动重试简化 prompt
 
 ### 新增
 
 - `--version` / `-V` 命令行参数
 - `MultiAgentCoordinator.set_roles()` / `restore_roles()` 公开 API
+- `utils.py` 共享工具模块，提供 `atomic_write_json()` 原子写入
 - 版本号统一升级至 1.0.2
 - 测试从 86 扩展到 95 个，覆盖断路器重试、成本重置、提示词压缩统计、环境变量解析、遥测装饰器、内存淘汰、文件读取安全等路径
+- 测试进一步扩展到 97 个，新增原子写入、错误恢复覆盖
 
 ## [1.0.1] - 2026-07-09
 

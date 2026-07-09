@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from context_manager import count_tokens
+from utils import atomic_write_json
 
 logger = logging.getLogger(__name__)
 
@@ -61,8 +62,7 @@ class PromptCache:
         if not self._dirty:
             return
         try:
-            with open(self.cache_file, "w", encoding="utf-8") as f:
-                json.dump(dict(self.cache._data), f, ensure_ascii=False, indent=2)
+            atomic_write_json(self.cache_file, dict(self.cache._data))
             self._dirty = False
         except Exception as e:
             logger.error(f"保存缓存失败 {self.cache_file}: {e}")
@@ -180,15 +180,14 @@ class CostTracker:
         try:
             CACHE_DIR.mkdir(parents=True, exist_ok=True)
             stats_file = CACHE_DIR / "cost_stats.json"
-            with open(stats_file, "w", encoding="utf-8") as f:
-                json.dump({
-                    "total_input_tokens": self.total_input_tokens,
-                    "total_output_tokens": self.total_output_tokens,
-                    "total_cache_hit_tokens": self.total_cache_hit_tokens,
-                    "total_cost": self.total_cost,
-                    "request_count": self.request_count,
-                    "_saved_cost": self._saved_cost,
-                }, f, ensure_ascii=False, indent=2)
+            atomic_write_json(stats_file, {
+                "total_input_tokens": self.total_input_tokens,
+                "total_output_tokens": self.total_output_tokens,
+                "total_cache_hit_tokens": self.total_cache_hit_tokens,
+                "total_cost": self.total_cost,
+                "request_count": self.request_count,
+                "_saved_cost": self._saved_cost,
+            })
         except Exception as e:
             logger.error(f"保存成本统计失败: {e}")
 

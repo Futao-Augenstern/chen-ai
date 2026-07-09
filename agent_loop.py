@@ -1793,6 +1793,13 @@ class AgentLoop:
             error_info = self._handle_execution_error(Exception(reply), enhanced_message)
             tracer.add_event("api_error", error_type=error_info["error_type"], error=str(reply))
             metrics.counter(f"{error_info['error_type']}_errors").add()
+            if error_info["strategy"] == "retry":
+                fallback = self.ai.chat(
+                    f"用户的问题: {original_msg}\n\n请用简洁的方式回答，忽略之前的错误。"
+                )
+                if not fallback.startswith("[错误]") and not fallback.startswith("[API错误]"):
+                    reply = fallback
+                    tracer.add_event("recovery", strategy="retry", success=True)
         self._finalize(original_msg, reply, enhanced_message, metrics, tracer, span)
         return reply
 

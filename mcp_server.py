@@ -8,6 +8,8 @@ from pathlib import Path
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
+from utils import atomic_write_json
+
 logger = logging.getLogger(__name__)
 
 MCP_DIR = Path(__file__).parent / "mcp_data"
@@ -515,8 +517,7 @@ class MCPManager:
     def _save(self) -> None:
         MCP_DIR.mkdir(parents=True, exist_ok=True)
         data = [s.to_dict() for s in self.servers.values()]
-        with open(MCP_CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        atomic_write_json(MCP_CONFIG_FILE, data)
 
     # ------------------------------------------------------------------
     # Basic CRUD
