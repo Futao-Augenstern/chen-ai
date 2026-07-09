@@ -363,6 +363,7 @@ def main() -> None:
     parser.add_argument("--model", "-m", help="指定模型名称")
     parser.add_argument("--web", "-w", action="store_true", help="启动 Web UI 模式")
     parser.add_argument("--port", type=int, default=7860, help="Web UI 端口号 (默认: 7860)")
+    parser.add_argument("--version", "-V", action="store_true", help="显示版本号后退出")
     parser.add_argument("--no-stream", action="store_true", help="禁用流式输出")
     parser.add_argument("--config", help="指定配置文件路径")
     parser.add_argument("--skills", action="store_true", help="列出所有可用技能后退出")
@@ -374,17 +375,23 @@ def main() -> None:
         print(f"错误: 端口号必须在 1-65535 之间，当前值: {args.port}")
         sys.exit(1)
 
+    # --version: 显示版本号后退出
+    if args.version:
+        from __init__ import __version__
+        print(f"chen-ai v{__version__}")
+        sys.exit(0)
+
     if RICH:
         console.print(
             Panel.fit(
-                "[bold cyan]AI 智能助手 v1.0.1[/bold cyan]\n"
+                "[bold cyan]AI 智能助手 v1.0.2[/bold cyan]\n"
                 "[dim]融合 Reasonix + Claude Code + Codex + Hermes + OpenClaw[/dim]",
                 border_style="cyan",
             )
         )
     else:
         print("=" * 60)
-        print("  AI 智能助手 (命令行版)  v1.0.1")
+        print("  AI 智能助手 (命令行版)  v1.0.2")
         print("  融合 Reasonix + Claude Code + Codex + Hermes + OpenClaw")
         print("=" * 60)
 

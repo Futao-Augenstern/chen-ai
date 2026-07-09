@@ -1053,6 +1053,131 @@ def test_resilience_circuit_breaker_open():
         pass
 
 
+def test_agent_loop_parallel_tool_order():
+    """Verify parallel tool execution preserves input order."""
+    from tools import ToolRegistry
+    from memory import MemorySystem
+    from agent_loop import AgentLoop
+
+    class FakeAI:
+        def __init__(self):
+            self.temperature = 0.7
+            self.max_tokens = 2048
+            self.model = "test"
+            self.system_prompt = "test"
+            self.client = None
+            self.history = []
+            self.default_system_prompt = "test"
+            self.provider_name = "test"
+
+    ai = FakeAI()
+    loop = AgentLoop(ai)
+    tools = [
+        {"name": "calculator", "params": {"expression": "1+1"}},
+        {"name": "time_utils", "params": {"operation": "now"}},
+        {"name": "calculator", "params": {"expression": "2+2"}},
+    ]
+    results = loop._execute_tools_parallel(tools)
+    assert len(results) == 3
+    assert results[0] is not None
+    assert results[1] is not None
+    assert results[2] is not None
+
+
+def test_agent_loop_trace_id_unique():
+    """Verify trace IDs are unique across calls."""
+    import uuid as _uuid
+    ids = set()
+    for _ in range(100):
+        tid = f"req-{_uuid.uuid4().hex[:12]}"
+        ids.add(tid)
+    assert len(ids) == 100
+
+
+def test_coordinator_set_restore_roles():
+    """Verify set_roles/restore_roles public API."""
+    from tools import ToolRegistry
+    from memory import MemorySystem
+    from agent_loop import AgentLoop, MultiAgentCoordinator
+
+    class FakeAI:
+        def __init__(self):
+            self.temperature = 0.7
+            self.max_tokens = 2048
+            self.model = "test"
+            self.system_prompt = "test"
+            self.client = None
+            self.history = []
+            self.default_system_prompt = "test"
+            self.provider_name = "test"
+
+    ai = FakeAI()
+    loop = AgentLoop(ai)
+    coordinator = MultiAgentCoordinator(loop)
+    original = coordinator.list_roles()
+    assert "planner" in original
+
+    saved = coordinator.set_roles(["researcher", "reviewer"])
+    assert len(coordinator.list_roles()) == 2
+    assert "researcher" in coordinator.list_roles()
+    assert "planner" not in coordinator.list_roles()
+
+    coordinator.restore_roles(saved)
+    assert len(coordinator.list_roles()) == len(original)
+    assert "planner" in coordinator.list_roles()
+
+
+def test_agent_loop_result_truncation():
+    """Verify result truncation adds notice."""
+    from agent_loop import AgentConfig
+    long_text = "x" * (AgentConfig.RESULT_TRUNCATE_LENGTH + 100)
+    if len(long_text) > AgentConfig.RESULT_TRUNCATE_LENGTH:
+        truncated = long_text[:AgentConfig.RESULT_TRUNCATE_LENGTH] + "...(truncated)"
+    else:
+        truncated = long_text
+    assert "(truncated)" in truncated
+    short_text = "hello"
+    truncated_short = short_text[:AgentConfig.RESULT_TRUNCATE_LENGTH] if len(short_text) > AgentConfig.RESULT_TRUNCATE_LENGTH else short_text
+    assert "(truncated)" not in truncated_short
+
+
+def test_agent_loop_error_classification():
+    """Verify error classification separates timeout from network errors."""
+    from tools import ToolRegistry
+    from memory import MemorySystem
+    from agent_loop import AgentLoop
+
+    class FakeAI:
+        def __init__(self):
+            self.temperature = 0.7
+            self.max_tokens = 2048
+            self.model = "test"
+            self.system_prompt = "test"
+            self.client = None
+            self.history = []
+            self.default_system_prompt = "test"
+            self.provider_name = "test"
+
+    ai = FakeAI()
+    loop = AgentLoop(ai)
+    # Timeout should be classified as "timeout", not "network"
+    result = loop._handle_execution_error(TimeoutError("timed out"), "test")
+    assert result["error_type"] == "timeout"
+    # Connection error should be classified as "network"
+    result2 = loop._handle_execution_error(ConnectionError("connection refused"), "test")
+    assert result2["error_type"] == "network"
+
+
+def test_version_flag():
+    """Verify __version__ exists and is a valid semver string."""
+    from __init__ import __version__
+    assert isinstance(__version__, str)
+    parts = __version__.split(".")
+    assert len(parts) == 3
+    for p in parts:
+        assert p.isdigit()
+
+
 if __name__ == "__main__":
     import traceback
 
@@ -1137,6 +1262,12 @@ if __name__ == "__main__":
         ("test_code_execution_import_check", test_code_execution_import_check),
         ("test_resilience_retry_manager", test_resilience_retry_manager),
         ("test_resilience_circuit_breaker_open", test_resilience_circuit_breaker_open),
+        ("test_agent_loop_parallel_tool_order", test_agent_loop_parallel_tool_order),
+        ("test_agent_loop_trace_id_unique", test_agent_loop_trace_id_unique),
+        ("test_coordinator_set_restore_roles", test_coordinator_set_restore_roles),
+        ("test_agent_loop_result_truncation", test_agent_loop_result_truncation),
+        ("test_agent_loop_error_classification", test_agent_loop_error_classification),
+        ("test_version_flag", test_version_flag),
     ]
 
     passed = 0

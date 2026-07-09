@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "chen-ai"
-version = "1.0.1"
+version = "1.0.2"
 description = "安全、零依赖的多模型 AI 智能助手 — 支持 12 家 LLM、记忆系统、Agent、MCP Server、沙箱执行"
 readme = "README.md"
 requires-python = ">=3.9"

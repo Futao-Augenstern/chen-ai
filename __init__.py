@@ -7,6 +7,6 @@ Agent Loop 等核心能力。
 版本: 1.0.1
 """
 
-__version__ = "1.0.1"
+__version__ = "1.0.2"
 __author__ = "Futao-Augenstern"
 __license__ = "MIT"

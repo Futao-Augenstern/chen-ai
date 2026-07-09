@@ -802,6 +802,33 @@ class MultiAgentCoordinator:
         """
         return list(self._roles.keys())
 
+    def set_roles(self, role_names: List[str]) -> Dict[str, AgentRole]:
+        """Temporarily replace roles with a subset of preset roles.
+
+        Saves the current roles for later restoration via restore_roles().
+
+        Args:
+            role_names: List of preset role names to use.
+
+        Returns:
+            The previous roles dict (pass to restore_roles() to restore).
+        """
+        original = dict(self._roles)
+        self._roles = {
+            name: self.PRESET_ROLES[name]
+            for name in role_names
+            if name in self.PRESET_ROLES
+        }
+        return original
+
+    def restore_roles(self, original: Dict[str, AgentRole]) -> None:
+        """Restore roles to the saved state.
+
+        Args:
+            original: The roles dict saved by set_roles().
+        """
+        self._roles = original
+
     # ------------------------------------------------------------------
     # Delegation
     # ------------------------------------------------------------------
@@ -1183,7 +1210,9 @@ class AgentLoop:
 
         results_text = json.dumps(
             plan_result["results"], default=str, ensure_ascii=False
-        )[:AgentConfig.RESULT_TRUNCATE_LENGTH]
+        )
+        if len(results_text) > AgentConfig.RESULT_TRUNCATE_LENGTH:
+            results_text = results_text[:AgentConfig.RESULT_TRUNCATE_LENGTH] + "...(truncated)"
 
         synthesis_prompt = (
             "Based on the following plan execution results, provide a "
@@ -1214,12 +1243,7 @@ class AgentLoop:
         """
         original_roles: Optional[Dict[str, AgentRole]] = None
         if roles:
-            original_roles = dict(self.coordinator._roles)
-            self.coordinator._roles = {
-                name: self.coordinator.PRESET_ROLES[name]
-                for name in roles
-                if name in self.coordinator.PRESET_ROLES
-            }
+            original_roles = self.coordinator.set_roles(roles)
 
         try:
             results = self.coordinator.broadcast(task)
@@ -1227,7 +1251,7 @@ class AgentLoop:
             return merged
         finally:
             if original_roles is not None:
-                self.coordinator._roles = original_roles
+                self.coordinator.restore_roles(original_roles)
 
     def run_with_debate(
         self, task: str, roles: Optional[List[str]] = None, rounds: int = 3
@@ -1248,19 +1272,14 @@ class AgentLoop:
         """
         original_roles: Optional[Dict[str, AgentRole]] = None
         if roles:
-            original_roles = dict(self.coordinator._roles)
-            self.coordinator._roles = {
-                name: self.coordinator.PRESET_ROLES[name]
-                for name in roles
-                if name in self.coordinator.PRESET_ROLES
-            }
+            original_roles = self.coordinator.set_roles(roles)
 
         try:
             debate_result = self.coordinator.roundtable(task, rounds=rounds)
             return debate_result["merged_result"]
         finally:
             if original_roles is not None:
-                self.coordinator._roles = original_roles
+                self.coordinator.restore_roles(original_roles)
 
     # ------------------------------------------------------------------
     # Error recovery
@@ -1294,7 +1313,7 @@ class AgentLoop:
 
         # Network errors
         if any(kw in error_str for kw in [
-            'timeout', 'connection', 'network', 'socket', 'timed out',
+            'connection', 'network', 'socket',
         ]):
             return {
                 "error_type": "network",
@@ -1441,20 +1460,21 @@ class AgentLoop:
         if len(tools) <= 1:
             return self._act(tools)
 
-        results: List[Any] = []
+        results: List[Any] = [None] * len(tools)
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=min(len(tools), self.max_parallel_tools)
         ) as executor:
-            futures = [
-                executor.submit(self._execute_single_tool, tool)
-                for tool in tools[:self.max_parallel_tools]
-            ]
-            for future in concurrent.futures.as_completed(futures):
+            future_to_idx = {
+                executor.submit(self._execute_single_tool, tool): i
+                for i, tool in enumerate(tools[:self.max_parallel_tools])
+            }
+            for future in concurrent.futures.as_completed(future_to_idx):
+                idx = future_to_idx[future]
                 try:
-                    results.append(future.result())
+                    results[idx] = future.result()
                 except Exception as e:
                     logging.getLogger(__name__).warning(f"AgentLoop._execute_tools_parallel工具执行失败: {e}")
-                    results.append(None)
+                    results[idx] = None
 
         for tool in tools[self.max_parallel_tools:]:
             results.append(self._execute_single_tool(tool))
@@ -1676,7 +1696,7 @@ class AgentLoop:
                          ) -> Tuple[str, str, Any, Any, Any]:
         tracer = get_tracer()
         metrics = get_metrics()
-        trace_id = f"req-{int(time.time() * 1000)}"
+        trace_id = f"req-{uuid.uuid4().hex[:12]}"
         tracer.start_trace(trace_id)
         span = tracer.start_span(span_name, message=user_message[:AgentConfig.SPAN_MESSAGE_TRUNCATE])
         metrics.counter("total_requests").add()
@@ -1802,7 +1822,8 @@ class AgentLoop:
             logging.getLogger(__name__).warning(f"AgentLoop.run_stream流式响应出错: {e}")
             metrics.counter("stream_errors").add()
             tracer.add_event("stream_error", error=str(e))
-            yield f"\n[流式响应出错] {e}\n"
+            self._finalize(original_msg, full_reply, enhanced_message, metrics, tracer, span)
+            yield f"\n[Stream error] {e}\n"
             if full_reply:
                 yield full_reply
             return
