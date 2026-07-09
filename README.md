@@ -1,6 +1,6 @@
 # chen-ai
 
-一个**安全、零依赖、支持 12 家国产大模型的多智能体 AI 助手**。
+A **secure, zero-dependency, multi-agent AI assistant** supporting 12 LLM providers.
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
@@ -8,57 +8,55 @@
 [![Tests](https://img.shields.io/badge/Tests-80%2F80-green.svg)]()
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](CONTRIBUTING.md)
 
-[English](README_EN.md) | 中文
+English | [中文](README_CN.md)
 
 ---
 
-## 为什么选择 chen-ai？
+## Why chen-ai?
 
-| 特性 | chen-ai | Open WebUI | LobeChat | Chatbox |
-|------|---------|-----------|----------|---------|
-| 零依赖核心 | ✅ | ❌ | ❌ | ❌ |
-| 沙箱安全代码执行 | ✅ AST 级别 | ❌ | ❌ | ❌ |
-| 12 家国产模型 | ✅ | 部分 | 部分 | 部分 |
+| Feature | chen-ai | Fabric | Aider | Open Interpreter |
+|---------|---------|--------|-------|-----------------|
+| Zero-dependency core | ✅ | ❌ | ❌ | ❌ |
+| Sandbox code execution | ✅ AST-level | ❌ | ❌ | ✅ subprocess |
+| 12 providers | ✅ | ✅ | ✅ | ✅ |
 | Plan-Execute Agent | ✅ | ❌ | ❌ | ❌ |
-| 三层记忆系统 | ✅ | ❌ | ❌ | ❌ |
-| MCP Server 生态 | ✅ 35 个预设 | ✅ | 部分 | ❌ |
-| 命令行 + Web UI | ✅ | ✅ | ✅ | ✅ |
-| 纯 Python 实现 | ✅ | ✅ | TypeScript | Electron |
+| Three-layer memory | ✅ | ❌ | ❌ | ❌ |
+| MCP Server ecosystem | ✅ 35 presets | ❌ | ❌ | ❌ |
+| CLI + Web UI | ✅ | ✅ | ✅ | ✅ |
+| Pure Python | ✅ | ✅ | ✅ | ✅ |
 
 ---
 
-## 功能特性
+## Features
 
-- **多模型支持** — OpenAI、DeepSeek、通义千问、Kimi、智谱 GLM、百度文心、Groq、硅基流动等 12 家服务商
-- **记忆系统** — 三层记忆架构（工作记忆 + 情景记忆 + 语义记忆），支持向量语义检索和 RAG 文档检索
-- **技能系统** — 73 个预设技能，可扩展的技能框架，支持关键词智能推荐
-- **工具调用** — ReAct Agent 模式 + Plan-Execute Agent 模式，11 个内置工具，支持并行工具执行
-- **多 Agent 协作** — 多 Agent 协作框架，任务依赖拓扑排序
-- **代码沙箱** — AST 级别的代码安全检查，白名单模块导入，输出截断
-- **MCP 服务器** — 兼容 Model Context Protocol，35 个预设配置，支持 SSE/Streamable HTTP
-- **Web 界面** — 基于 Gradio 的 Web UI，5 个功能 Tab
-- **命令行界面** — 20+ 条斜杠命令，交互式对话
-- **缓存优化** — 前缀缓存 + 提示词压缩，减少 token 消耗
-- **弹性重试** — 断路器 + 指数退避，提高 API 调用可靠性
-- **遥测系统** — 分布式追踪 + 指标收集
+- **Multi-Provider** — OpenAI, DeepSeek, Qwen, Kimi, GLM, ERNIE, Groq, SiliconFlow, and more (12 providers)
+- **Memory System** — Three-layer architecture (working + episodic + semantic), vector semantic search, and RAG
+- **Skill System** — 73 built-in skills, extensible framework, keyword-based smart recommendations
+- **Tool Calling** — ReAct Agent + Plan-Execute Agent, 11 built-in tools, parallel execution
+- **Multi-Agent** — Collaborative agent framework with task dependency topological sorting
+- **Code Sandbox** — AST-level security checks, module whitelist, output truncation
+- **MCP Servers** — Model Context Protocol compatible, 35 preset configurations, SSE/Streamable HTTP
+- **Web UI** — Gradio-based interface with 5 functional tabs
+- **CLI** — 20+ slash commands, interactive chat
+- **Cache Optimization** — Prefix caching + prompt compression
+- **Resilience** — Circuit breaker + exponential backoff retry
+- **Telemetry** — Distributed tracing + metrics collection
 
 ---
 
-## 快速开始
+## Quick Start
 
-### 安装
-
-核心功能零依赖，仅需 `python-dotenv`：
+### Installation
 
 ```bash
-# 基础安装
+# Minimal install (only python-dotenv required)
 pip install chen-ai
 
-# 完整安装（包含所有可选依赖）
+# Full install
 pip install chen-ai[full]
 ```
 
-### Docker 一键部署
+### Docker
 
 ```bash
 docker run -p 7860:7860 \
@@ -67,108 +65,108 @@ docker run -p 7860:7860 \
   ghcr.io/futao-augenstern/chen-ai
 ```
 
-### 配置
+### Configuration
 
 ```bash
 cp .env.example .env
-# 编辑 .env 填入你的 API 密钥
+# Edit .env with your API keys
 ```
 
-### 运行
+### Usage
 
 ```bash
-# 命令行模式
+# CLI mode
 chen-ai chat
 
-# Web UI 模式
+# Web UI mode
 chen-ai web
 ```
 
-或者直接运行源文件：
+Or run source files directly:
 
 ```bash
-python main.py        # 命令行
-python web_ui.py      # Web 界面
+python main.py        # CLI
+python web_ui.py      # Web UI
 ```
 
-更多示例请查看 [examples/](examples/) 目录。
+See [examples/](examples/) for more.
 
 ---
 
-## 支持的模型提供商
+## Supported Providers
 
-| 提供商 | 环境变量 | 状态 |
-|--------|----------|------|
+| Provider | Env Variable | Status |
+|----------|-------------|--------|
 | OpenAI | `OPENAI_API_KEY` | ✅ |
 | DeepSeek | `DEEPSEEK_API_KEY` | ✅ |
-| 通义千问 | `DASHSCOPE_API_KEY` | ✅ |
+| Qwen (Tongyi) | `DASHSCOPE_API_KEY` | ✅ |
 | Moonshot (Kimi) | `MOONSHOT_API_KEY` | ✅ |
-| 智谱 GLM | `ZHIPUAI_API_KEY` | ✅ |
-| 百度文心 | `BAIDU_API_KEY` | ✅ |
-| 零一万物 | `LINGYIWANWU_API_KEY` | ✅ |
+| Zhipu GLM | `ZHIPUAI_API_KEY` | ✅ |
+| Baidu ERNIE | `BAIDU_API_KEY` | ✅ |
+| Lingyiwanwu | `LINGYIWANWU_API_KEY` | ✅ |
 | Groq | `GROQ_API_KEY` | ✅ |
 | Together AI | `TOGETHER_API_KEY` | ✅ |
-| 硅基流动 | `SILICONFLOW_API_KEY` | ✅ |
-| Ollama (本地) | - | ✅ |
-| 自定义 | `OPENAI_BASE_URL` | ✅ |
+| SiliconFlow | `SILICONFLOW_API_KEY` | ✅ |
+| Ollama (local) | - | ✅ |
+| Custom | `OPENAI_BASE_URL` | ✅ |
 
 ---
 
-## 项目结构
+## Architecture
 
 ```
 chen-ai/
-├── main.py              # 主入口（命令行界面）
-├── web_ui.py            # Web 界面（Gradio）
-├── ai_core.py           # AI 对话核心
-├── agent_loop.py        # Agent 主循环 (ReAct + Plan-Execute)
-├── memory.py            # 三层记忆系统
-├── skills.py            # 技能管理器（73 个技能）
-├── tools.py             # 工具注册表（11 个工具 + 沙箱）
-├── mcp_server.py        # MCP 服务器管理（35 个预设）
-├── context_manager.py   # 上下文窗口管理
-├── prompt_compressor.py # 提示词压缩
-├── cache_optimizer.py   # 缓存优化 + 成本追踪
-├── resilience.py        # 弹性重试 + 断路器
-├── hooks.py             # 钩子系统
-├── telemetry.py         # 遥测（追踪 + 指标）
-├── config.py            # 配置管理
-├── providers.json       # 模型提供商配置
-├── tests.py             # 80 个测试用例
-├── examples/            # 使用示例
-└── .github/             # GitHub 配置
+├── main.py              # CLI entry point
+├── web_ui.py            # Web UI (Gradio)
+├── ai_core.py           # AI chat core
+├── agent_loop.py        # Agent loop (ReAct + Plan-Execute)
+├── memory.py            # Three-layer memory system
+├── skills.py            # Skill manager (73 skills)
+├── tools.py             # Tool registry (11 tools + sandbox)
+├── mcp_server.py        # MCP server manager (35 presets)
+├── context_manager.py   # Context window management
+├── prompt_compressor.py # Prompt compression
+├── cache_optimizer.py   # Cache optimization + cost tracking
+├── resilience.py        # Circuit breaker + retry
+├── hooks.py             # Hook system
+├── telemetry.py         # Tracing + metrics
+├── config.py            # Configuration
+├── providers.json       # Provider configs
+├── tests.py             # 80 test cases
+├── examples/            # Usage examples
+└── .github/             # GitHub config
 ```
 
 ---
 
-## 开发
+## Development
 
 ```bash
-# 运行测试（80 个用例）
+# Run tests (80 cases)
 python tests.py
 
-# 安装开发依赖
+# Install dev dependencies
 pip install -e ".[dev]"
 ```
 
-每行代码都经过 80 个单元测试和 22 个压力测试（边界、并发、沙箱安全、压力、原子写入、损坏恢复）。
+Every line of code is covered by 80 unit tests and 22 stress tests (boundary, concurrency, sandbox security, pressure, atomic writes, corruption recovery).
 
 ---
 
-## 社区
+## Community
 
-- [提交 Issue](https://github.com/Futao-Augenstern/chen-ai/issues) — 报告 Bug 或建议新功能
-- [贡献指南](CONTRIBUTING.md) — 参与贡献
-- [更新日志](CHANGELOG.md) — 版本历史
+- [Issues](https://github.com/Futao-Augenstern/chen-ai/issues) — Bug reports & feature requests
+- [Contributing](CONTRIBUTING.md) — How to contribute
+- [Changelog](CHANGELOG.md) — Release history
 
 ---
 
-## 许可证
+## License
 
 [MIT License](LICENSE)
 
 ---
 
-## 星标历史
+## Star History
 
-如果这个项目对你有帮助，请给一个 ⭐ Star 支持一下！
+If you find this project helpful, please give it a ⭐ Star!
