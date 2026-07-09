@@ -1476,10 +1476,10 @@ class AgentLoop:
                     logging.getLogger(__name__).warning(f"AgentLoop._execute_tools_parallel工具执行失败: {e}")
                     results[idx] = None
 
-        for tool in tools[self.max_parallel_tools:]:
-            results.append(self._execute_single_tool(tool))
+        for i, tool in enumerate(tools[self.max_parallel_tools:], start=self.max_parallel_tools):
+            results[i] = self._execute_single_tool(tool)
 
-        return [r for r in results if r is not None]
+        return results
 
     # ------------------------------------------------------------------
     # Think phase (unchanged)
