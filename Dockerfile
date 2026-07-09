@@ -31,8 +31,8 @@ RUN mkdir -p /app/memory_data /app/cache_data /app/telemetry
 # Expose Gradio default port
 EXPOSE 7860
 
-# Default command: start Web UI
-CMD ["python", "web_ui.py", "--server-name", "0.0.0.0"]
+# Default command: start Web UI via main.py
+CMD ["python", "main.py", "--web", "--port", "7860"]
 
 # To run CLI mode instead:
 # docker run -it --rm -e OPENAI_API_KEY=sk-xxx ghcr.io/futao-augenstern/chen-ai python main.py
